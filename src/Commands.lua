@@ -3,6 +3,7 @@ local addonName, addon = ...
 local commandHelp = {
 	"Commands:",
 	"/nt or /notatank - open options",
+	"/nt target - add your current target as top priority",
 	"/nt status - show current setup summary",
 	"/nt lock - lock movable Notatank frames",
 	"/nt unlock - unlock movable Notatank frames",
@@ -24,6 +25,8 @@ function addon:HandleChatCommand(input)
 
 	if command == "" then
 		self:OpenOptions()
+	elseif command == "target" then
+		self:AddCurrentTargetCommand()
 	elseif command == "status" then
 		self:PrintStatus()
 	elseif command == "lock" then
@@ -50,10 +53,21 @@ function addon:PrintStatus()
 
 	local lockState = profile.overlays.locked and "locked" or "unlocked"
 	local macroState = profile.macro.enabled and "enabled" or "disabled"
+	local priorityCount = self.GetPriorityCount and self:GetPriorityCount() or 0
 
 	self:Print(("macro %s: %s"):format(macroState, profile.macro.name))
-	self:Print(("target capture placeholder: %s"):format(profile.targets.captureEnabled and "enabled" or "disabled"))
+	self:Print(("target capture: %s"):format(profile.targets.captureEnabled and "enabled" or "disabled"))
+	self:Print(("priority targets: %d"):format(priorityCount))
 	self:Print(("overlays: %s"):format(lockState))
+end
+
+function addon:AddCurrentTargetCommand()
+	local ok, indexOrMessage, label = self:AddCurrentTargetToPriority(true)
+	if ok then
+		self:Print(("Added top priority target: %s."):format(label))
+	else
+		self:Print(indexOrMessage)
+	end
 end
 
 function addon:SetOverlayLock(locked)

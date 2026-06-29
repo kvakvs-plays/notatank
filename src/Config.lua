@@ -7,8 +7,6 @@ local defaults = {
 		debug = false,
 		targets = {
 			captureEnabled = true,
-			placeholderName = "",
-			placeholderRaidMark = 1,
 			enabledMarks = {
 				[1] = true,
 				[2] = true,
@@ -44,6 +42,7 @@ local defaults = {
 
 function addon:InitializeConfig()
 	self.db = AceDB:New("NotatankDB", defaults, true)
+	self:NormalizeTargetPriority()
 end
 
 function addon:GetProfile()

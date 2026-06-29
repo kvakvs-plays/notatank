@@ -22,17 +22,17 @@ Add `src/Options.lua` using AceConfig/AceConfigDialog. Create tabs for `Targets`
 Playable state: `/nt` or `/notatank` opens the options window; changing placeholder settings persists after reload.
 
 ## Step 4: Implement Priority Target Data Model
-Add target priority storage under `targets.priority`. Support entries of type `mark` and `name`, with add/remove/up/down helpers. Add default raid mark metadata and stable labels.
+Add target priority storage under `targets.priority`. Support entries of type `mark` and `name`, with add/remove/up/down helpers. Partial names are ok (matching first letters of the name) - this should be added to the tooltip of the options UI. Add default raid mark metadata and stable labels.
 
 Playable state: options can display and reorder priority entries, but they do not affect targeting yet.
 
 ## Step 5: Implement Target Options Controls
-Fill the `Targets` tab with the eight raid marks list, selected priority list, up/down/delete controls, text input for monster names, and an “add current target” action that calls a stub-safe helper.
+Fill the `Targets` tab with the eight raid marks list (first UI list), selected priority list (second UI list), up/down/delete controls, text input for monster names, and an “add current target” action that calls a stub-safe helper.
 
 Playable state: users can configure priority targets entirely through options without combat behavior.
 
 ## Step 6: Implement `/nt target`
-Wire `/nt target` to add the current target’s name as the top priority entry when a target exists. Print a concise error if there is no target.
+Wire `/nt target` (or `/notatank target`) to add the current target’s name as the top priority entry when a target exists. Print a concise error if there is no target.
 
 Playable state: command updates options data and remains safe in or out of combat.
 

@@ -14,8 +14,9 @@
 
 - `src/Core.lua` - Creates the AceAddon instance, stores addon display constants, and runs module initialization from `OnInitialize`.
 - `src/Config.lua` - Owns AceDB defaults, initializes `NotatankDB`, and exposes profile/debug helpers.
-- `src/Options.lua` - Registers the AceConfig/AceConfigDialog options shell with `Targets`, `Macro`, `Reminders`, and `Profiles` tabs.
-- `src/Commands.lua` - Registers `/notatank` and `/nt`; opens options by default and handles `status`, `lock`, `unlock`, and unknown-command help.
+- `src/Targets.lua` - Owns raid mark metadata, target priority entry normalization, add/remove/reorder helpers, and current-target name capture.
+- `src/Options.lua` - Registers the AceConfig/AceConfigDialog options UI with editable target priority controls plus `Macro`, `Reminders`, and `Profiles` tabs.
+- `src/Commands.lua` - Registers `/notatank` and `/nt`; opens options by default and handles `target`, `status`, `lock`, `unlock`, and unknown-command help.
 
 ## Libraries
 
