@@ -1,4 +1,9 @@
+---@type string, NotAddon
 local addonName, addon = ...
+
+--- @class NotRaidmark
+--- @field id number
+--- @field label string
 
 local raidMarks = {
 	[1] = { id = 1, label = "Star" },
@@ -13,6 +18,8 @@ local raidMarks = {
 
 addon.RAID_MARKS = raidMarks
 addon.RAID_MARK_ORDER = { 8, 7, 6, 5, 4, 3, 2, 1 }
+
+local capturedTargets = {}
 
 local function trim(value)
 	if type(value) ~= "string" then
@@ -86,6 +93,138 @@ local function notifyOptionsChanged()
 	if addon.NotifyOptionsChanged then
 		addon:NotifyOptionsChanged()
 	end
+end
+
+local function notifyTargetDataChanged(reason)
+	if addon.RequestMacroRebuild then
+		addon:RequestMacroRebuild(reason)
+	end
+end
+
+local function normalizeName(value)
+	value = trim(value)
+	return value and value:lower() or nil
+end
+
+local function getNow()
+	if type(GetTime) == "function" then
+		return GetTime()
+	end
+
+	return 0
+end
+
+local function isInCombat()
+	return type(InCombatLockdown) == "function" and InCombatLockdown()
+end
+
+local function getUnitName(unit)
+	if type(UnitName) ~= "function" then
+		return nil
+	end
+
+	local name, realm = UnitName(unit)
+	name = trim(name)
+	if not name then
+		return nil
+	end
+
+	realm = trim(realm)
+	if realm then
+		return ("%s-%s"):format(name, realm)
+	end
+
+	return name
+end
+
+local function unitExists(unit)
+	return type(UnitExists) == "function" and UnitExists(unit)
+end
+
+local function unitIsHostile(unit)
+	return type(UnitCanAttack) == "function" and UnitCanAttack("player", unit)
+end
+
+local function unitIsDead(unit)
+	return type(UnitIsDead) == "function" and UnitIsDead(unit)
+end
+
+local function getUnitGuid(unit)
+	if type(UnitGUID) ~= "function" then
+		return nil
+	end
+
+	return UnitGUID(unit)
+end
+
+local function getUnitMark(unit)
+	if type(GetRaidTargetIndex) ~= "function" then
+		return nil
+	end
+
+	return GetRaidTargetIndex(unit)
+end
+
+local function getCaptureKey(unit, name)
+	return getUnitGuid(unit) or normalizeName(name)
+end
+
+local function priorityMatchesName(entry, name)
+	local wanted = entry and normalizeName(entry.name)
+	local actual = normalizeName(name)
+	if not wanted or not actual then
+		return false
+	end
+
+	return actual:sub(1, #wanted) == wanted
+end
+
+local function getPriorityMatch(name, mark)
+	local profile = addon:GetProfile()
+	local targets = profile and profile.targets
+	if not targets then
+		return nil
+	end
+
+	local priority = addon:GetPriorityList()
+	for index = 1, #priority do
+		local entry = priority[index]
+		if entry.type == "mark" and mark and entry.mark == mark and targets.enabledMarks[mark] ~= false then
+			return index, entry
+		end
+
+		if entry.type == "name" and priorityMatchesName(entry, name) then
+			return index, entry
+		end
+	end
+
+	return nil
+end
+
+local function candidateStillMatches(candidate)
+	if not candidate then
+		return false
+	end
+
+	local rank = getPriorityMatch(candidate.name, candidate.mark)
+	if not rank then
+		return false
+	end
+
+	candidate.priorityRank = rank
+	return true
+end
+
+local function candidateSort(left, right)
+	if left.priorityRank ~= right.priorityRank then
+		return left.priorityRank < right.priorityRank
+	end
+
+	if left.lastSeen ~= right.lastSeen then
+		return left.lastSeen > right.lastSeen
+	end
+
+	return left.name < right.name
 end
 
 function addon:GetRaidMarkLabel(mark)
@@ -181,6 +320,7 @@ function addon:AddPriorityEntry(entry, addToTop)
 	end
 
 	notifyOptionsChanged()
+	notifyTargetDataChanged("priority changed")
 	return true, index, self:GetPriorityEntryLabel(entry)
 end
 
@@ -201,6 +341,7 @@ function addon:RemovePriorityEntry(index)
 
 	table.remove(priority, index)
 	notifyOptionsChanged()
+	notifyTargetDataChanged("priority changed")
 	return true
 end
 
@@ -219,6 +360,7 @@ function addon:MovePriorityEntry(index, direction)
 
 	priority[index], priority[targetIndex] = priority[targetIndex], priority[index]
 	notifyOptionsChanged()
+	notifyTargetDataChanged("priority changed")
 	return true, targetIndex
 end
 
@@ -247,4 +389,83 @@ function addon:AddCurrentTargetToPriority(addToTop)
 	end
 
 	return true, index, label, name
+end
+
+function addon:InitializeTargets()
+	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "HandleMouseoverUnitUpdate")
+end
+
+function addon:HandleMouseoverUnitUpdate()
+	self:HandleMouseoverUnit("mouseover")
+end
+
+function addon:HandleMouseoverUnit(unit)
+	local profile = self:GetProfile()
+	if not profile or not profile.targets or not profile.targets.captureEnabled then
+		return false, "Target capture is disabled."
+	end
+
+	if isInCombat() then
+		return false, "Target capture is skipped during combat."
+	end
+
+	if not unitExists(unit) or not unitIsHostile(unit) then
+		return false, "Unit is not a hostile target."
+	end
+
+	local name = getUnitName(unit)
+	if not name then
+		return false, "Unit name is unavailable."
+	end
+
+	local key = getCaptureKey(unit, name)
+	if not key then
+		return false, "Unit key is unavailable."
+	end
+
+	if unitIsDead(unit) then
+		if capturedTargets[key] then
+			capturedTargets[key] = nil
+			notifyTargetDataChanged("captured target died")
+			return true
+		end
+		return false, "Unit is dead."
+	end
+
+	local mark = getUnitMark(unit)
+	local rank = getPriorityMatch(name, mark)
+	if not rank then
+		return false, "Unit does not match configured target priorities."
+	end
+
+	capturedTargets[key] = {
+		key = key,
+		guid = getUnitGuid(unit),
+		name = name,
+		mark = mark,
+		priorityRank = rank,
+		lastSeen = getNow(),
+	}
+
+	notifyTargetDataChanged("captured mouseover target")
+	return true
+end
+
+function addon:GetCapturedTargets()
+	local candidates = {}
+
+	for key, candidate in pairs(capturedTargets) do
+		if candidateStillMatches(candidate) then
+			candidates[#candidates + 1] = candidate
+		else
+			capturedTargets[key] = nil
+		end
+	end
+
+	table.sort(candidates, candidateSort)
+	return candidates
+end
+
+function addon:GetCapturedTargetCount()
+	return #self:GetCapturedTargets()
 end

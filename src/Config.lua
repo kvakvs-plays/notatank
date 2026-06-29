@@ -1,3 +1,4 @@
+---@type string, NotAddon
 local addonName, addon = ...
 
 local AceDB = LibStub("AceDB-3.0")

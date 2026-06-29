@@ -48,6 +48,7 @@ Playable state: configured macro is maintained out of combat and combat attempts
 
 ## Step 9: Add Mouseover Capture
 Add `src/Targets.lua` event handling for mouseover hostile units before combat. Capture only units matching selected priority raid marks or configured names. Store name, mark, GUID fallback key, priority rank, and last seen time.
+Captured names (until killed) can be used for deducing the actual group of mobs being targeted and for reducing the amount of prio target buttons shown and the amount of target commands in the macro. 
 
 Playable state: mouseover capture updates internal state and macro rebuilds out of combat; no popup UI yet.
 

@@ -1,9 +1,11 @@
+---@type string, NotAddon
 local addonName, addon = ...
 
 local commandHelp = {
 	"Commands:",
 	"/nt or /notatank - open options",
 	"/nt target - add your current target as top priority",
+	"/nt rebuild - repair the addon macro",
 	"/nt status - show current setup summary",
 	"/nt lock - lock movable Notatank frames",
 	"/nt unlock - unlock movable Notatank frames",
@@ -27,6 +29,8 @@ function addon:HandleChatCommand(input)
 		self:OpenOptions()
 	elseif command == "target" then
 		self:AddCurrentTargetCommand()
+	elseif command == "rebuild" or command == "repair" then
+		self:RebuildMacroCommand()
 	elseif command == "status" then
 		self:PrintStatus()
 	elseif command == "lock" then
@@ -54,11 +58,30 @@ function addon:PrintStatus()
 	local lockState = profile.overlays.locked and "locked" or "unlocked"
 	local macroState = profile.macro.enabled and "enabled" or "disabled"
 	local priorityCount = self.GetPriorityCount and self:GetPriorityCount() or 0
+	local capturedCount = self.GetCapturedTargetCount and self:GetCapturedTargetCount() or 0
+	local state = self.GetMacroState and self:GetMacroState() or {}
 
 	self:Print(("macro %s: %s"):format(macroState, profile.macro.name))
 	self:Print(("target capture: %s"):format(profile.targets.captureEnabled and "enabled" or "disabled"))
 	self:Print(("priority targets: %d"):format(priorityCount))
+	self:Print(("captured targets: %d"):format(capturedCount))
+	if state.queued then
+		self:Print("macro rebuild: queued until combat ends")
+	elseif state.lastError then
+		self:Print(("macro rebuild: %s"):format(state.lastError))
+	elseif state.index then
+		self:Print(("macro index: %d"):format(state.index))
+	end
 	self:Print(("overlays: %s"):format(lockState))
+end
+
+function addon:RebuildMacroCommand()
+	local ok, message = self:RequestMacroRebuild("manual command")
+	if ok then
+		self:Print("Macro repaired.")
+	elseif message then
+		self:Print(message)
+	end
 end
 
 function addon:AddCurrentTargetCommand()

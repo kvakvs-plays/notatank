@@ -1,3 +1,4 @@
+---@type string, NotAddon
 local addonName, addon = ...
 
 local AceConfig = LibStub("AceConfig-3.0")
@@ -23,6 +24,18 @@ local function setPath(rootKey, key)
 		local profile = addon:GetProfile()
 		if profile and profile[rootKey] then
 			profile[rootKey][key] = value
+		end
+	end
+end
+
+local function setMacroPath(key)
+	return function(_, value)
+		local profile = addon:GetProfile()
+		if profile and profile.macro then
+			profile.macro[key] = value
+			if addon.RequestMacroRebuild then
+				addon:RequestMacroRebuild("macro option changed")
+			end
 		end
 	end
 end
@@ -252,10 +265,10 @@ local function buildOptions()
 			enabled = {
 				type = "toggle",
 				name = "Maintain macro",
-				desc = "Placeholder setting for future Notatank macro maintenance.",
+				desc = "Create and update the addon-owned macro out of combat.",
 				order = 10,
 				get = getPath("macro", "enabled"),
-				set = setPath("macro", "enabled"),
+				set = setMacroPath("enabled"),
 			},
 			name = {
 				type = "input",
@@ -263,15 +276,29 @@ local function buildOptions()
 				desc = "Name reserved for the addon-owned macro.",
 				order = 20,
 				get = getPath("macro", "name"),
-				set = setPath("macro", "name"),
+				set = setMacroPath("name"),
 			},
 			rebuildOnChanges = {
 				type = "toggle",
 				name = "Rebuild on changes",
-				desc = "Placeholder setting for coalesced macro updates.",
+				desc = "Rebuild the macro when configured priorities or captured targets change.",
 				order = 30,
 				get = getPath("macro", "rebuildOnChanges"),
 				set = setPath("macro", "rebuildOnChanges"),
+			},
+			rebuild = {
+				type = "execute",
+				name = "Repair macro",
+				desc = "Create or update the addon-owned macro now, if out of combat.",
+				order = 40,
+				func = function()
+					local ok, message = addon:RequestMacroRebuild("manual repair")
+					if ok then
+						addon:Print("Macro repaired.")
+					elseif message then
+						addon:Print(message)
+					end
+				end,
 			},
 		},
 	}

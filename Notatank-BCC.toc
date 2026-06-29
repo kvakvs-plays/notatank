@@ -21,5 +21,6 @@ lib\AceConfig-3.0\AceConfig-3.0.xml
 src\Core.lua
 src\Config.lua
 src\Targets.lua
+src\Macro.lua
 src\Options.lua
 src\Commands.lua
