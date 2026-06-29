@@ -20,3 +20,7 @@ Saved data is profile-scoped through AceDB. Current defaults include placeholder
 ## Current Boundaries
 
 No WoW macro writes, protected frame changes, targeting, or combat behavior exist yet. Slash commands and options only update saved settings or print status. Future macro and protected UI work should stay out of combat and queue updates until combat ends.
+
+## Packaging
+
+`wowaddon.py` packages only runtime addon files: `src/`, `lib/`, and root `.toc` files. `install` replaces the addon folder under a supplied WoW `Interface\AddOns` directory, and `zip` creates a release archive named from the checkout directory and the `local version = "..."` line in `src/Core.lua`.

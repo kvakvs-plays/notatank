@@ -3,6 +3,9 @@
 ## Root
 
 - `Notatank-BCC.toc` - Classic TBC addon manifest. Loads embedded Ace3 libraries from `lib/`, declares `NotatankDB`, and loads source modules from `src/`.
+- `wowaddon.py` - Standard-library packaging helper with `install` and `zip` commands for addon-only runtime files.
+- `install.bat` - Windows helper that installs the addon into the configured local WoW `_anniversary_` AddOns folder.
+- `release.bat` - Windows helper that writes a release zip to `../_Releases`.
 - `AGENTS.md` - Repository instructions for agents.
 - `impl.md` - Step-by-step implementation plan.
 - `plan.md` - Feature plan and assumptions.

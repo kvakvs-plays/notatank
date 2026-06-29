@@ -4,6 +4,7 @@ local AceAddon = LibStub("AceAddon-3.0")
 
 AceAddon:NewAddon(addon, addonName, "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0")
 
+local version = "2026.6.0"
 addon.ADDON_NAME = addonName
 addon.DISPLAY_NAME = "Notatank"
 
