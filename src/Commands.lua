@@ -98,7 +98,7 @@ function addon:PrintStatus()
 	else
 		self:Print("popup update: ready")
 	end
-	self:Print(("reminders: %s, target missing %d, shout %s"):format(
+	self:Print(("reminders: %s, target missing %d, self buff %s"):format(
 		reminderState.locked and "locked" or "unlocked",
 		reminderState.targetMissingCount or 0,
 		reminderState.shoutActive and "active" or "inactive"

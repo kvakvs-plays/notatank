@@ -3,7 +3,7 @@ local addonName, addon = ...
 
 local ICON_SIZE = 34
 local ICON_GAP = 5
-local TARGET_BUTTON_COUNT = 4
+local TARGET_BUTTON_COUNT = 5
 local SHOUT_BUTTON_COUNT = 1
 local DEFAULT_WARNING_SECONDS = 15
 
@@ -31,19 +31,28 @@ local targetDebuffsByClass = {
 		{ key = "vampiricEmbrace", spell = "Vampiric Embrace", icon = "Interface\\Icons\\Spell_Shadow_UnsummonBuilding", requires = "shadowForm" },
 		{ key = "shadowWordPain", spell = "Shadow Word: Pain", icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain", requires = "shadowForm" },
 	},
+	WARLOCK = {
+		{ key = "corruption", spell = "Corruption", icon = "Interface\\Icons\\Spell_Shadow_AbominationExplosion" },
+		{ key = "immolate", spell = "Immolate", icon = "Interface\\Icons\\Spell_Fire_Immolation" },
+		{ key = "curseOfDoom", spell = "Curse of Doom", icon = "Interface\\Icons\\Spell_Shadow_AuraOfDarkness" },
+		{ key = "curseOfAgony", spell = "Curse of Agony", icon = "Interface\\Icons\\Spell_Shadow_CurseOfSargeras" },
+		{ key = "curseOfElements", spell = "Curse of the Elements", icon = "Interface\\Icons\\Spell_Shadow_ChillTouch" },
+	},
 }
 
-local warriorShouts = {
-	{ key = "battleShout", spell = "Battle Shout", icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
-	{ key = "commandingShout", spell = "Commanding Shout", icon = "Interface\\Icons\\Ability_Warrior_RallyingCry" },
+local playerBuffsByClass = {
+	WARRIOR = {
+		{ key = "battleShout", spell = "Battle Shout", icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
+		{ key = "commandingShout", spell = "Commanding Shout", icon = "Interface\\Icons\\Ability_Warrior_RallyingCry" },
+	},
 }
 
 local reminders = {
 	frames = {},
 	targetMissingCount = 0,
 	shoutActive = false,
-	lastOwnShoutSpell = nil,
-	lastOwnShoutTime = 0,
+	lastOwnPlayerBuffSpell = nil,
+	lastOwnPlayerBuffTime = 0,
 }
 
 addon.REMINDER_TARGET_BUTTON_COUNT = TARGET_BUTTON_COUNT
@@ -268,28 +277,34 @@ local function getTargetDebuffSpells()
 	return missing
 end
 
-local function getBestShout()
+local function getBestPlayerBuff()
 	local settings = getFrameSettings("shouts")
-	if not settings or not settings.enabled or getPlayerClass() ~= "WARRIOR" then
+	if not settings or not settings.enabled then
+		return nil, nil
+	end
+
+	local classFile = getPlayerClass()
+	local spells = playerBuffsByClass[classFile] or {}
+	if #spells == 0 then
 		return nil, nil
 	end
 
 	local warningSeconds = tonumber(settings.warningSeconds) or DEFAULT_WARNING_SECONDS
 	local fallback
-	for index = 1, #warriorShouts do
-		local shout = warriorShouts[index]
-		if spellEnabled(settings, shout.key) then
-			fallback = fallback or shout
-			local aura = findAura("player", shout.spell, "HELPFUL")
+	for index = 1, #spells do
+		local spell = spells[index]
+		if spellEnabled(settings, spell.key) then
+			fallback = fallback or spell
+			local aura = findAura("player", spell.spell, "HELPFUL")
 			if aura then
 				local remaining
 				if type(aura.expirationTime) == "number" and aura.expirationTime > 0 then
 					remaining = aura.expirationTime - getNow()
 				end
 				if remaining and remaining <= warningSeconds then
-					return shout, remaining
+					return spell, remaining
 				end
-				if aura.caster == "player" or reminders.lastOwnShoutSpell == shout.spell then
+				if aura.caster == "player" or reminders.lastOwnPlayerBuffSpell == spell.spell then
 					return nil, remaining
 				end
 			end
@@ -458,7 +473,7 @@ local function createReminderFrame(kind, buttonCount)
 
 	local handle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	handle:SetPoint("BOTTOM", frame, "TOP", 0, 18)
-	handle:SetText(kind == "targetDebuffs" and "Notatank target reminders" or "Notatank shout reminder")
+	handle:SetText(kind == "targetDebuffs" and "Notatank target reminders" or "Notatank self buff reminder")
 
 	local missingLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	missingLabel:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 0, 3)
@@ -502,14 +517,14 @@ local function refreshTargetDebuffs()
 	return prepareReminderIcons("targetDebuffs", missing)
 end
 
-local function refreshPlayerShouts()
+local function refreshPlayerBuffs()
 	local frameState = reminders.frames.shouts
-	local shout, remaining = getBestShout()
-	local active = shout ~= nil
+	local buff, remaining = getBestPlayerBuff()
+	local active = buff ~= nil
 	reminders.shoutActive = active
 
 	if active then
-		local prepared = prepareReminderIcons("shouts", { shout })
+		local prepared = prepareReminderIcons("shouts", { buff })
 		if prepared and frameState and frameState.items[1] and remaining then
 			frameState.items[1].countdown:SetText(("%d"):format(math.max(0, math.floor(remaining))))
 		end
@@ -537,7 +552,7 @@ function addon:RefreshTargetDebuffs()
 end
 
 function addon:RefreshPlayerBuffs()
-	return refreshPlayerShouts()
+	return refreshPlayerBuffs()
 end
 
 function addon:HandleReminderUnitAura(event, unit)
@@ -554,11 +569,12 @@ function addon:HandleReminderSpellcastSucceeded(event, unit, castGuid, spellId)
 	end
 
 	local spellName = type(GetSpellInfo) == "function" and GetSpellInfo(spellId) or nil
-	for index = 1, #warriorShouts do
-		local shout = warriorShouts[index]
-		if spellName == shout.spell or castGuid == shout.spell then
-			reminders.lastOwnShoutSpell = shout.spell
-			reminders.lastOwnShoutTime = getNow()
+	local spells = playerBuffsByClass[getPlayerClass()] or {}
+	for index = 1, #spells do
+		local spell = spells[index]
+		if spellName == spell.spell or castGuid == spell.spell then
+			reminders.lastOwnPlayerBuffSpell = spell.spell
+			reminders.lastOwnPlayerBuffTime = getNow()
 			self:RefreshPlayerBuffs()
 			return
 		end

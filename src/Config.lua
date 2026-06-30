@@ -60,6 +60,11 @@ local defaults = {
 					vampiricTouch = true,
 					vampiricEmbrace = false,
 					shadowWordPain = true,
+					corruption = true,
+					immolate = false,
+					curseOfDoom = false,
+					curseOfAgony = true,
+					curseOfElements = false,
 				},
 			},
 			shouts = {

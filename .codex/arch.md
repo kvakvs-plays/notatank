@@ -11,7 +11,7 @@ Notatank is a World of Warcraft Classic TBC addon built around Ace3. The addon c
 3. `src/Targets.lua` defines raid mark metadata, priority-list helpers, and mouseover capture.
 4. `src/Macro.lua` renders and maintains the addon-owned macro.
 5. `src/Popup.lua` pre-creates secure target buttons and handles popup placement.
-6. `src/Reminders.lua` creates movable reminder overlays, class debuff checks, and warrior shout checks.
+6. `src/Reminders.lua` creates movable reminder overlays, class debuff checks, and class-grouped self-buff checks.
 7. `src/Options.lua` registers the AceConfig options table and Interface Options entry.
 8. `src/Commands.lua` registers `/notatank` and `/nt`.
 
@@ -25,13 +25,13 @@ Captured targets are in-memory only. `UPDATE_MOUSEOVER_UNIT` records hostile mou
 
 The combat popup is a fixed pool of secure action buttons prepared out of combat from captured priority candidates. Button macro attributes are never changed in combat. Visibility is controlled by a secure state driver where available: the popup shows in combat when prepared candidates exist, otherwise it stays hidden. Clicking a popup button targets that clicked candidate. While unlocked, a placement visual is shown out of combat so the frame can be dragged and saved.
 
-Reminder overlays are profile-scoped under `profile.overlays`. `src/Reminders.lua` owns two movable frames: target debuffs and warrior shouts. Target reminders are passive texture icons that can update during combat and check the current live hostile target for enabled class debuffs: warrior Thunder Clap and Demoralizing Shout; paladin Judgement variants; druid Faerie Fire and Insect Swarm plus bear-only Demoralizing Roar and Mangle; hunter Hunter's Mark, Serpent Sting, and Scorpid Sting; and shadow priest Vampiric Touch, Vampiric Embrace, and Shadow Word: Pain while in Shadowform. Warrior shout reminders are also passive texture icons that update during combat while watching Battle Shout and Commanding Shout on the player, using aura caster data when available and recent player spellcast tracking as a best-effort ownership fallback.
+Reminder overlays are profile-scoped under `profile.overlays`. `src/Reminders.lua` owns two movable frames: target debuffs and self buffs. Target reminders are passive texture icons that can update during combat and check the current live hostile target for enabled class debuffs: warrior Thunder Clap and Demoralizing Shout; paladin Judgement variants; druid Faerie Fire and Insect Swarm plus bear-only Demoralizing Roar and Mangle; hunter Hunter's Mark, Serpent Sting, and Scorpid Sting; shadow priest Vampiric Touch, Vampiric Embrace, and Shadow Word: Pain while in Shadowform; and warlock Corruption, Immolate, Curse of Doom, Curse of Agony, and Curse of the Elements. Self-buff reminders are also passive texture icons that update during combat while watching class-grouped player buffs, using aura caster data when available and recent player spellcast tracking as a best-effort ownership fallback.
 
 ## Current Boundaries
 
 The addon owns one macro by configured name and marks its body with an ownership line before editing it later. Macro creation and edits only run out of combat; rebuild requests during combat are queued until `PLAYER_REGEN_ENABLED`. The macro keeps the highest-priority captured names that fit the Classic macro body limit, then emits `/tar [nodead] <name>` lines in reverse priority order followed by `/startattack`. WoW runs every `/tar` line in sequence, so the final successful target command wins and the highest-priority available captured target remains selected.
 
-Popup position, scale, and lock state live under `profile.popup`. Reminder position, scale, opacity, enabled spells, and shout warning thresholds live under `profile.overlays`. `/nt lock` and `/nt unlock` update popup and reminder lock state. Reminder icons update immediately because they are passive textures and do not use protected spell button attributes.
+Popup position, scale, and lock state live under `profile.popup`. Reminder position, scale, opacity, enabled spells, and self-buff warning thresholds live under `profile.overlays`. The self-buff settings retain the existing `profile.overlays.shouts` key for profile compatibility. `/nt lock` and `/nt unlock` update popup and reminder lock state. Reminder icons update immediately because they are passive textures and do not use protected spell button attributes.
 
 `/nt status` is the primary in-game diagnostic surface. It reports target capture, configured priorities, captured candidates, macro state, popup state, reminder state, and queued combat updates. Macro creation failures, truncation, and in-combat rebuild queues are reported through concise addon chat messages.
 
