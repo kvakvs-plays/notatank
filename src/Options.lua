@@ -617,6 +617,25 @@ local function buildOptions()
 		},
 	}
 
+	optionTable.args.help = {
+		type = "group",
+		name = "Help",
+		order = 35,
+		args = {
+			flowHeader = {
+				type = "header",
+				name = "Targeting flow",
+				order = 10,
+			},
+			flow = {
+				type = "description",
+				name = "Before combat, mouse over hostile mobs so Notatank can notice them. Only noticed mobs that match your configured priority raid marks or name prefixes are kept as target candidates.\n\nWhen you enter combat, prepared target buttons appear if any matching candidates were noticed. Clicking a popup target button targets that specific mob.\n\nClicking the Notatank macro runs captured targets in reverse priority order. WoW processes every /tar line, so the last successful target line wins and the highest-priority available target remains selected.",
+				order = 20,
+				fontSize = "medium",
+			},
+		},
+	}
+
 	return optionTable
 end
 

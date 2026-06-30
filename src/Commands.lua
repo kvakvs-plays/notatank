@@ -2,7 +2,7 @@
 local addonName, addon = ...
 
 local commandHelp = {
-	"Commands:",
+	"Commands: (also read Help tab in the /nt options window)",
 	"/nt or /notatank - open options",
 	"/nt target - add your current target as top priority",
 	"/nt rebuild - repair the addon macro",

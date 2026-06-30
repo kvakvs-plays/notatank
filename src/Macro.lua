@@ -72,7 +72,7 @@ local function renderLines(candidates)
 	local lines = {}
 	local names = uniqueCandidateNames(candidates)
 
-	for index = 1, #names do
+	for index = #names, 1, -1 do
 		lines[#lines + 1] = ("/tar [nodead] %s"):format(names[index])
 	end
 
@@ -84,34 +84,38 @@ local function joinLines(lines)
 	return table.concat(lines, "\n")
 end
 
-local function renderWritableBody(candidates)
+local function renderWritableBodyFromNames(names)
 	local lines = { OWNER_MARKER }
+
+	for index = #names, 1, -1 do
+		lines[#lines + 1] = ("/tar [nodead] %s"):format(names[index])
+	end
+
+	lines[#lines + 1] = "/startattack"
+
+	return joinLines(lines)
+end
+
+local function renderWritableBody(candidates)
+	local names = uniqueCandidateNames(candidates)
+	local selectedNames = {}
 	local truncated = false
-	local targetLines = renderLines(candidates)
 
-	for index = 1, #targetLines do
-		local line = targetLines[index]
-		if line == "/startattack" then
-			break
+	for index = 1, #names do
+		local candidateNames = {}
+		for nameIndex = 1, #selectedNames do
+			candidateNames[nameIndex] = selectedNames[nameIndex]
 		end
+		candidateNames[#candidateNames + 1] = names[index]
 
-		local candidateLines = {}
-		for lineIndex = 1, #lines do
-			candidateLines[lineIndex] = lines[lineIndex]
-		end
-		candidateLines[#candidateLines + 1] = line
-		candidateLines[#candidateLines + 1] = "/startattack"
-
-		if #joinLines(candidateLines) <= MAX_BODY_LENGTH then
-			lines[#lines + 1] = line
+		if #renderWritableBodyFromNames(candidateNames) <= MAX_BODY_LENGTH then
+			selectedNames[#selectedNames + 1] = names[index]
 		else
 			truncated = true
 		end
 	end
 
-	lines[#lines + 1] = "/startattack"
-
-	return joinLines(lines), truncated
+	return renderWritableBodyFromNames(selectedNames), truncated
 end
 
 local function findOwnedMacro()
