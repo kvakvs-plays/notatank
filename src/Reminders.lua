@@ -7,6 +7,8 @@ local TARGET_BUTTON_COUNT = 4
 local SHOUT_BUTTON_COUNT = 1
 local DEFAULT_WARNING_SECONDS = 15
 
+_G["NOTATANK_DEBUG"] = false
+
 local targetDebuffsByClass = {
 	WARRIOR = {
 		{ key = "thunderClap", spell = "Thunder Clap", icon = "Interface\\Icons\\Spell_Nature_ThunderClap" },
@@ -29,7 +31,6 @@ local warriorShouts = {
 
 local reminders = {
 	frames = {},
-	queued = false,
 	targetMissingCount = 0,
 	shoutActive = false,
 	lastOwnShoutSpell = nil,
@@ -38,6 +39,40 @@ local reminders = {
 
 addon.REMINDER_TARGET_BUTTON_COUNT = TARGET_BUTTON_COUNT
 addon.REMINDER_SHOUT_BUTTON_COUNT = SHOUT_BUTTON_COUNT
+
+local function debugLog(message)
+	if not _G["NOTATANK_DEBUG"] then
+		return
+	end
+
+	if addon and type(addon.Print) == "function" then
+		addon:Print("[debug] " .. message)
+	elseif type(DEFAULT_CHAT_FRAME) == "table" and type(DEFAULT_CHAT_FRAME.AddMessage) == "function" then
+		DEFAULT_CHAT_FRAME:AddMessage("Notatank [debug] " .. message)
+	elseif type(print) == "function" then
+		print("Notatank [debug] " .. message)
+	end
+end
+
+local function debugValue(value)
+	if value == nil then
+		return "nil"
+	end
+
+	return tostring(value)
+end
+
+local function debugEmptyTargetDebuffs(reason)
+	debugLog(("target debuffs result: no icons because %s"):format(reason))
+end
+
+local function shouldDebugAura(unit, filter)
+	return unit == "target" and filter == "HARMFUL"
+end
+
+local function shouldDebugReminder(kind)
+	return kind == "targetDebuffs"
+end
 
 local function isInCombat()
 	return type(InCombatLockdown) == "function" and InCombatLockdown()
@@ -134,8 +169,12 @@ local function unitIsDead(unit)
 	return type(UnitIsDead) == "function" and UnitIsDead(unit)
 end
 
-local function isHostileTarget()
-	return unitExists("target") and unitCanAttack("target") and not unitIsDead("target")
+local function unitName(unit)
+	if type(UnitName) ~= "function" then
+		return nil
+	end
+
+	return UnitName(unit)
 end
 
 local function isBearForm()
@@ -143,25 +182,12 @@ local function isBearForm()
 		return false
 	end
 
-	if type(GetShapeshiftFormInfo) == "function" then
-		for index = 1, 10 do
-			local icon, nameOrActive, activeOrCastable, castableOrName = GetShapeshiftFormInfo(index)
-			local active = activeOrCastable
-			local name = nameOrActive
-			if type(nameOrActive) == "boolean" then
-				active = nameOrActive
-				name = castableOrName
-			end
-			if not icon and not name then
-				break
-			end
-			if active and type(name) == "string" and name:find("Bear", 1, true) then
-				return true
-			end
-		end
+	if type(GetShapeshiftFormID) ~= "function" then
+		return false
 	end
 
-	return false
+	local formId = GetShapeshiftFormID()
+	return (BEAR_FORM ~= nil and formId == BEAR_FORM) or formId == 8
 end
 
 local function auraNameMatches(actual, wanted)
@@ -176,13 +202,18 @@ end
 
 local function findAura(unit, spell, filter)
 	local auraFunc = filter == "HELPFUL" and UnitBuff or UnitDebuff
+	local searchedAuras = 0
 	if type(auraFunc) == "function" then
 		for index = 1, 40 do
 			local name, rank, icon, count, debuffType, duration, expirationTime, caster = auraFunc(unit, index)
 			if not name then
 				break
 			end
+			searchedAuras = searchedAuras + 1
 			if auraNameMatches(name, spell) then
+				if shouldDebugAura(unit, filter) then
+					debugLog(("found %s aura for %s on %s via %s at index %d"):format(filter, spell, unit, filter == "HELPFUL" and "UnitBuff" or "UnitDebuff", index))
+				end
 				return {
 					name = name,
 					icon = icon,
@@ -200,7 +231,11 @@ local function findAura(unit, spell, filter)
 			if not name then
 				break
 			end
+			searchedAuras = searchedAuras + 1
 			if auraNameMatches(name, spell) then
+				if shouldDebugAura(unit, filter) then
+					debugLog(("found %s aura for %s on %s via UnitAura at index %d"):format(filter, spell, unit, index))
+				end
 				return {
 					name = name,
 					icon = icon,
@@ -212,6 +247,9 @@ local function findAura(unit, spell, filter)
 		end
 	end
 
+	if shouldDebugAura(unit, filter) then
+		debugLog(("missing %s aura for %s on %s after scanning %d aura slots"):format(filter, spell, unit, searchedAuras))
+	end
 	return nil
 end
 
@@ -221,24 +259,71 @@ end
 
 local function getTargetDebuffSpells()
 	local settings = getFrameSettings("targetDebuffs")
-	if not settings or not settings.enabled or not isHostileTarget() then
+	if not settings then
+		debugLog("target debuffs skipped: overlay settings are not ready")
+		debugEmptyTargetDebuffs("overlay settings are not ready")
+		return {}
+	end
+
+	if not settings.enabled then
+		debugLog("target debuffs skipped: targetDebuffs overlay is disabled")
+		debugEmptyTargetDebuffs("target debuff reminders are disabled")
+		return {}
+	end
+
+	local targetExists = unitExists("target")
+	local targetAttackable = unitCanAttack("target")
+	local targetDead = unitIsDead("target")
+	if not targetExists or not targetAttackable or targetDead then
+		debugLog(("target debuffs skipped: targetExists=%s targetAttackable=%s targetDead=%s"):format(
+			debugValue(targetExists),
+			debugValue(targetAttackable),
+			debugValue(targetDead)
+		))
+		debugEmptyTargetDebuffs(("target is not a live hostile unit (name=%s exists=%s attackable=%s dead=%s)"):format(
+			debugValue(unitName("target")),
+			debugValue(targetExists),
+			debugValue(targetAttackable),
+			debugValue(targetDead)
+		))
 		return {}
 	end
 
 	local classFile = getPlayerClass()
+	debugLog(("target debuffs checking class=%s"):format(debugValue(classFile)))
 	if classFile == "DRUID" and not isBearForm() then
+		debugLog("target debuffs skipped: druid is not in bear form")
+		debugEmptyTargetDebuffs("druid is not in bear form")
 		return {}
 	end
 
 	local spells = targetDebuffsByClass[classFile] or {}
+	if #spells == 0 then
+		debugLog(("target debuffs skipped: no configured target debuffs for class=%s"):format(debugValue(classFile)))
+		debugEmptyTargetDebuffs(("player class has no configured target debuffs (class=%s)"):format(debugValue(classFile)))
+		return {}
+	end
+
 	local missing = {}
 	for index = 1, #spells do
 		local spell = spells[index]
-		if spellEnabled(settings, spell.key) and not findAura("target", spell.spell, "HARMFUL") then
-			missing[#missing + 1] = spell
+		if spellEnabled(settings, spell.key) then
+			local aura = findAura("target", spell.spell, "HARMFUL")
+			if not aura then
+				debugLog(("target debuff missing: %s (%s)"):format(spell.spell, spell.key))
+				missing[#missing + 1] = spell
+			else
+				debugLog(("target debuff present: %s matched %s"):format(spell.spell, debugValue(aura.name)))
+			end
+		else
+			debugLog(("target debuff disabled in options: %s (%s)"):format(spell.spell, spell.key))
 		end
 	end
 
+	debugLog(("target debuffs missing count=%d"):format(#missing))
+	if #missing == 0 then
+		debugEmptyTargetDebuffs("all enabled configured target debuffs are already present or disabled")
+	end
 	return missing
 end
 
@@ -327,104 +412,121 @@ end
 local function setVisibilityDriver(kind, active)
 	local frameState = reminders.frames[kind]
 	if not frameState then
+		if shouldDebugReminder(kind) then
+			debugLog(("visibility skipped for %s: frame state missing"):format(kind))
+		end
 		return
 	end
 
 	local overlays = getOverlaySettings()
 	local unlocked = overlays and not overlays.locked
-	local driver
+	local shown
 	if kind == "shouts" then
-		driver = active and "[combat] show; hide" or "hide"
+		shown = active and isInCombat()
 	elseif active then
-		driver = "show"
+		shown = true
 	elseif unlocked then
-		driver = "show"
+		shown = true
 	else
-		driver = "hide"
+		shown = false
 	end
 
-	if type(RegisterStateDriver) == "function" then
-		RegisterStateDriver(frameState.frame, "visibility", driver)
-	elseif active or unlocked then
+	if shouldDebugReminder(kind) then
+		debugLog(("visibility for %s: active=%s unlocked=%s shown=%s"):format(
+			kind,
+			debugValue(active),
+			debugValue(unlocked),
+			debugValue(shown)
+		))
+	end
+
+	if shown then
 		frameState.frame:Show()
 	else
 		frameState.frame:Hide()
 	end
 end
 
-local function configureButton(button, spell)
-	button:SetAttribute("type", "spell")
-	button:SetAttribute("spell", spell.spell)
-	button.texture:SetTexture(getSpellIcon(spell.spell, spell.icon))
-	button.countdown:SetText("")
-	button:Show()
-end
-
-local function clearButton(button)
-	button:SetAttribute("spell", nil)
-	button.texture:SetTexture(nil)
-	button.countdown:SetText("")
-	button:Hide()
-end
-
-local function prepareButtons(kind, spells)
-	if isInCombat() then
-		reminders.queued = true
-		return false
+local function configureIcon(icon, spell, kind)
+	if shouldDebugReminder(kind) then
+		debugLog(("configure reminder icon: %s"):format(spell.spell))
 	end
+	icon.texture:SetTexture(getSpellIcon(spell.spell, spell.icon))
+	if icon.countdown then
+		icon.countdown:SetText("")
+	end
+	icon:Show()
+end
 
+local function clearIcon(icon)
+	icon.texture:SetTexture(nil)
+	if icon.countdown then
+		icon.countdown:SetText("")
+	end
+	icon:Hide()
+end
+
+local function prepareReminderIcons(kind, spells)
 	local frameState = reminders.frames[kind]
 	if not frameState then
+		if shouldDebugReminder(kind) then
+			debugLog(("prepare %s failed: frame state missing"):format(kind))
+		end
 		return false
 	end
 
 	spells = spells or {}
+	if shouldDebugReminder(kind) then
+		debugLog(("prepare %s icons: spells=%d icons=%d inCombat=%s"):format(kind, #spells, frameState.buttonCount, debugValue(isInCombat())))
+	end
 	for index = 1, frameState.buttonCount do
-		local button = frameState.buttons[index]
+		local icon = frameState.items[index]
 		local spell = spells[index]
 		if spell then
-			configureButton(button, spell)
+			configureIcon(icon, spell, kind)
 		else
-			clearButton(button)
+			clearIcon(icon)
 		end
 	end
 
 	frameState.preparedCount = #spells
+	setRegionShown(frameState.missingLabel, #spells > 0)
 	setVisibilityDriver(kind, #spells > 0)
 	return true
 end
 
-local function createReminderButton(kind, index, parent)
-	local button = CreateFrame("Button", addonName .. kind .. "ReminderButton" .. index, parent, "SecureActionButtonTemplate")
-	button:SetSize(ICON_SIZE, ICON_SIZE)
+local function createReminderIcon(index, parent, countdown)
+	local item = CreateFrame("Frame", parent:GetName() .. "Item" .. index, parent)
+	item:SetSize(ICON_SIZE, ICON_SIZE)
 	if index == 1 then
-		button:SetPoint("LEFT", parent, "LEFT", 0, 0)
+		item:SetPoint("LEFT", parent, "LEFT", 0, 0)
 	else
-		button:SetPoint("LEFT", parent.buttons[index - 1], "RIGHT", ICON_GAP, 0)
+		item:SetPoint("LEFT", parent.items[index - 1], "RIGHT", ICON_GAP, 0)
 	end
-	button:RegisterForClicks("AnyUp")
 
-	local texture = button:CreateTexture(nil, "ARTWORK")
+	local texture = item:CreateTexture(nil, "ARTWORK")
 	texture:SetAllPoints()
-	button.texture = texture
+	item.texture = texture
 
-	local border = button:CreateTexture(nil, "OVERLAY")
+	local border = item:CreateTexture(nil, "OVERLAY")
 	border:SetAllPoints()
 	border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
 
-	local countdown = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	countdown:SetPoint("BOTTOM", button, "BOTTOM", 0, 2)
-	button.countdown = countdown
+	if countdown then
+		local countdownText = item:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		countdownText:SetPoint("BOTTOM", item, "BOTTOM", 0, 2)
+		item.countdown = countdownText
+	end
 
-	button:Hide()
-	return button
+	item:Hide()
+	return item
 end
 
 local function createReminderFrame(kind, buttonCount)
-	local frame = CreateFrame("Frame", addonName .. kind .. "Reminder", UIParent, "SecureHandlerStateTemplate")
+	local frame = CreateFrame("Frame", addonName .. kind .. "Reminder", UIParent)
 	frame:SetSize(frameWidth(buttonCount), ICON_SIZE)
 	frame:SetClampedToScreen(true)
-	frame.buttons = {}
+	frame.items = {}
 
 	local background = frame:CreateTexture(nil, "BACKGROUND")
 	background:SetAllPoints()
@@ -435,8 +537,13 @@ local function createReminderFrame(kind, buttonCount)
 	end
 
 	local handle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	handle:SetPoint("BOTTOM", frame, "TOP", 0, 4)
+	handle:SetPoint("BOTTOM", frame, "TOP", 0, 18)
 	handle:SetText(kind == "targetDebuffs" and "Notatank target reminders" or "Notatank shout reminder")
+
+	local missingLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	missingLabel:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 0, 3)
+	missingLabel:SetText("Missing:")
+	missingLabel:Hide()
 
 	frame:SetScript("OnDragStart", function(self)
 		if not isInCombat() then
@@ -452,14 +559,15 @@ local function createReminderFrame(kind, buttonCount)
 		frame = frame,
 		background = background,
 		handle = handle,
-		buttons = frame.buttons,
+		missingLabel = missingLabel,
+		items = frame.items,
 		buttonCount = buttonCount,
 		preparedCount = 0,
 	}
 	reminders.frames[kind] = frameState
 
 	for index = 1, buttonCount do
-		frame.buttons[index] = createReminderButton(kind, index, frame)
+		frame.items[index] = createReminderIcon(index, frame, kind == "shouts")
 	end
 
 	applyFramePosition(kind)
@@ -469,9 +577,10 @@ local function createReminderFrame(kind, buttonCount)
 end
 
 local function refreshTargetDebuffs()
+	debugLog("refresh target debuffs requested")
 	local missing = getTargetDebuffSpells()
 	reminders.targetMissingCount = #missing
-	return prepareButtons("targetDebuffs", missing)
+	return prepareReminderIcons("targetDebuffs", missing)
 end
 
 local function refreshPlayerShouts()
@@ -480,22 +589,19 @@ local function refreshPlayerShouts()
 	local active = shout ~= nil
 	reminders.shoutActive = active
 
-	if active and frameState and frameState.buttons[1] and remaining then
-		frameState.buttons[1].countdown:SetText(("%d"):format(math.max(0, math.floor(remaining))))
-	end
-
-	if isInCombat() then
-		return false
-	end
-
 	if active then
-		return prepareButtons("shouts", { shout })
+		local prepared = prepareReminderIcons("shouts", { shout })
+		if prepared and frameState and frameState.items[1] and remaining then
+			frameState.items[1].countdown:SetText(("%d"):format(math.max(0, math.floor(remaining))))
+		end
+		return prepared
 	end
 
-	return prepareButtons("shouts", {})
+	return prepareReminderIcons("shouts", {})
 end
 
 function addon:InitializeReminders()
+	debugLog("initialize reminders")
 	createReminderFrame("targetDebuffs", TARGET_BUTTON_COUNT)
 	createReminderFrame("shouts", SHOUT_BUTTON_COUNT)
 
@@ -518,6 +624,7 @@ end
 
 function addon:HandleReminderUnitAura(event, unit)
 	if unit == "target" then
+		debugLog(("target aura event: %s"):format(debugValue(event)))
 		self:RefreshTargetDebuffs()
 	elseif unit == "player" then
 		self:RefreshPlayerBuffs()
@@ -542,9 +649,7 @@ function addon:HandleReminderSpellcastSucceeded(event, unit, castGuid, spellId)
 end
 
 function addon:HandleRemindersRegenEnabled()
-	if reminders.queued then
-		reminders.queued = false
-	end
+	debugLog("player left combat: refreshing reminders")
 	self:RefreshTargetDebuffs()
 	self:RefreshPlayerBuffs()
 end
@@ -553,6 +658,7 @@ function addon:HandleRemindersRegenDisabled()
 	if not isInCombat() then
 		return
 	end
+	debugLog("player entered combat: refreshing reminders")
 	self:RefreshTargetDebuffs()
 	self:RefreshPlayerBuffs()
 end
@@ -672,6 +778,5 @@ function addon:GetReminderState()
 		opacity = overlays.opacity,
 		targetMissingCount = reminders.targetMissingCount,
 		shoutActive = reminders.shoutActive,
-		queued = reminders.queued,
 	}
 end
