@@ -49,6 +49,7 @@ local defaults = {
 				spells = {
 					thunderClap = true,
 					demoralizingShout = true,
+					sunderArmor = true,
 					judgement = true,
 					faerieFire = true,
 					insectSwarm = false,

@@ -11,6 +11,7 @@ local targetDebuffsByClass = {
 	WARRIOR = {
 		{ key = "thunderClap", spell = "Thunder Clap", icon = "Interface\\Icons\\Spell_Nature_ThunderClap" },
 		{ key = "demoralizingShout", spell = "Demoralizing Shout", icon = "Interface\\Icons\\Ability_Warrior_WarCry" },
+		{ key = "sunderArmor", spell = "Sunder Armor", icon = "Interface\\Icons\\Ability_Warrior_Sunder", requiredStacks = 5 },
 	},
 	PALADIN = {
 		{ key = "judgement", spell = "Judgement", icon = "Interface\\Icons\\Spell_Holy_RighteousFury" },
@@ -214,6 +215,7 @@ local function findAura(unit, spell, filter)
 				return {
 					name = name,
 					icon = icon,
+					count = count,
 					duration = duration,
 					expirationTime = expirationTime,
 					caster = caster,
@@ -232,6 +234,7 @@ local function findAura(unit, spell, filter)
 				return {
 					name = name,
 					icon = icon,
+					count = count,
 					duration = duration,
 					expirationTime = expirationTime,
 					caster = caster,
@@ -259,6 +262,17 @@ end
 
 local function spellEnabled(settings, key)
 	return not settings.spells or settings.spells[key] ~= false
+end
+
+local function withStackCount(spell, count)
+	return {
+		key = spell.key,
+		spell = spell.spell,
+		icon = spell.icon,
+		requires = spell.requires,
+		requiredStacks = spell.requiredStacks,
+		stackCount = count,
+	}
 end
 
 local function getTargetDebuffSpells()
@@ -291,6 +305,14 @@ local function getTargetDebuffSpells()
 			local aura = findAura("target", spell.spell, "HARMFUL")
 			if not aura then
 				missing[#missing + 1] = spell
+			elseif spell.requiredStacks then
+				local stackCount = tonumber(aura.count) or 0
+				if stackCount <= 0 then
+					stackCount = 1
+				end
+				if stackCount < spell.requiredStacks then
+					missing[#missing + 1] = withStackCount(spell, stackCount)
+				end
 			end
 		end
 	end
@@ -395,9 +417,7 @@ local function setVisibilityDriver(kind, active)
 	local overlays = getOverlaySettings()
 	local unlocked = overlays and not overlays.locked
 	local shown
-	if kind == "shouts" then
-		shown = active and isInCombat()
-	elseif active then
+	if active then
 		shown = true
 	elseif unlocked then
 		shown = true
@@ -417,6 +437,10 @@ local function configureIcon(icon, spell)
 	if icon.countdown then
 		icon.countdown:SetText("")
 	end
+	if icon.stackCount then
+		local count = tonumber(spell.stackCount) or 0
+		icon.stackCount:SetText(count > 0 and tostring(count) or "")
+	end
 	icon:Show()
 end
 
@@ -424,6 +448,9 @@ local function clearIcon(icon)
 	icon.texture:SetTexture(nil)
 	if icon.countdown then
 		icon.countdown:SetText("")
+	end
+	if icon.stackCount then
+		icon.stackCount:SetText("")
 	end
 	icon:Hide()
 end
@@ -473,6 +500,10 @@ local function createReminderIcon(index, parent, countdown)
 		countdownText:SetPoint("BOTTOM", item, "BOTTOM", 0, 2)
 		item.countdown = countdownText
 	end
+
+	local stackCountText = item:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	stackCountText:SetPoint("BOTTOMRIGHT", item, "BOTTOMRIGHT", -3, 2)
+	item.stackCount = stackCountText
 
 	item:Hide()
 	return item
