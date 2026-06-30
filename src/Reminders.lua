@@ -264,17 +264,6 @@ local function spellEnabled(settings, key)
 	return not settings.spells or settings.spells[key] ~= false
 end
 
-local function withStackCount(spell, count)
-	return {
-		key = spell.key,
-		spell = spell.spell,
-		icon = spell.icon,
-		requires = spell.requires,
-		requiredStacks = spell.requiredStacks,
-		stackCount = count,
-	}
-end
-
 local function getTargetDebuffSpells()
 	local settings = getFrameSettings("targetDebuffs")
 	if not settings then
@@ -306,12 +295,9 @@ local function getTargetDebuffSpells()
 			if not aura then
 				missing[#missing + 1] = spell
 			elseif spell.requiredStacks then
-				local stackCount = tonumber(aura.count) or 0
-				if stackCount <= 0 then
-					stackCount = 1
-				end
-				if stackCount < spell.requiredStacks then
-					missing[#missing + 1] = withStackCount(spell, stackCount)
+				local stackCount = tonumber(aura.count)
+				if not stackCount or stackCount < spell.requiredStacks then
+					missing[#missing + 1] = spell
 				end
 			end
 		end
@@ -434,18 +420,20 @@ end
 
 local function configureIcon(icon, spell)
 	icon.texture:SetTexture(getSpellIcon(spell.spell, spell.icon))
+	icon.tooltipText = spell.spell
 	if icon.countdown then
 		icon.countdown:SetText("")
 	end
 	if icon.stackCount then
-		local count = tonumber(spell.stackCount) or 0
-		icon.stackCount:SetText(count > 0 and tostring(count) or "")
+		local requiredStacks = tonumber(spell.requiredStacks) or 0
+		icon.stackCount:SetText(requiredStacks > 0 and tostring(requiredStacks) or "")
 	end
 	icon:Show()
 end
 
 local function clearIcon(icon)
 	icon.texture:SetTexture(nil)
+	icon.tooltipText = nil
 	if icon.countdown then
 		icon.countdown:SetText("")
 	end
@@ -453,6 +441,38 @@ local function clearIcon(icon)
 		icon.stackCount:SetText("")
 	end
 	icon:Hide()
+end
+
+local function showIconTooltip(icon)
+	if not icon.tooltipText or type(GameTooltip) ~= "table" then
+		return
+	end
+
+	GameTooltip:SetOwner(icon, "ANCHOR_RIGHT")
+	GameTooltip:SetText(icon.tooltipText)
+	GameTooltip:Show()
+end
+
+local function hideIconTooltip()
+	if type(GameTooltip) == "table" then
+		GameTooltip:Hide()
+	end
+end
+
+local function forwardDragStart(item)
+	local parent = item:GetParent()
+	local onDragStart = parent and parent:GetScript("OnDragStart")
+	if onDragStart then
+		onDragStart(parent)
+	end
+end
+
+local function forwardDragStop(item)
+	local parent = item:GetParent()
+	local onDragStop = parent and parent:GetScript("OnDragStop")
+	if onDragStop then
+		onDragStop(parent)
+	end
 end
 
 local function prepareReminderIcons(kind, spells)
@@ -481,6 +501,8 @@ end
 local function createReminderIcon(index, parent, countdown)
 	local item = CreateFrame("Frame", parent:GetName() .. "Item" .. index, parent)
 	item:SetSize(ICON_SIZE, ICON_SIZE)
+	item:EnableMouse(true)
+	item:RegisterForDrag("LeftButton")
 	if index == 1 then
 		item:SetPoint("LEFT", parent, "LEFT", 0, 0)
 	else
@@ -504,6 +526,11 @@ local function createReminderIcon(index, parent, countdown)
 	local stackCountText = item:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	stackCountText:SetPoint("BOTTOMRIGHT", item, "BOTTOMRIGHT", -3, 2)
 	item.stackCount = stackCountText
+
+	item:SetScript("OnEnter", showIconTooltip)
+	item:SetScript("OnLeave", hideIconTooltip)
+	item:SetScript("OnDragStart", forwardDragStart)
+	item:SetScript("OnDragStop", forwardDragStop)
 
 	item:Hide()
 	return item
