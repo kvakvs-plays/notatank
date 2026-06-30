@@ -1,6 +1,6 @@
 # Notatank Architecture
 
-Notatank is a World of Warcraft Classic TBC addon built around Ace3. The addon currently implements the loadable foundation from implementation steps 1 through 15: lifecycle setup, saved profile defaults, slash command routing, target priority data, safe macro maintenance, mouseover target capture, the combat target popup, and tank reminder overlays.
+Notatank is a World of Warcraft Classic TBC addon built around Ace3. The addon currently implements the loadable foundation from implementation steps 1 through 16: lifecycle setup, saved profile defaults, slash command routing, target priority data, safe macro maintenance, mouseover target capture, the combat target popup, tank reminder overlays, and setup diagnostics.
 
 ## Load Order
 
@@ -32,6 +32,8 @@ Reminder overlays are profile-scoped under `profile.overlays`. `src/Reminders.lu
 The addon owns one macro by configured name and marks its body with an ownership line before editing it later. Macro creation and edits only run out of combat; rebuild requests during combat are queued until `PLAYER_REGEN_ENABLED`. The macro body renders unique captured names as ordered `/tar [nodead] <name>` lines plus `/startattack`, truncating to the Classic macro body limit by keeping the highest-priority lines that fit.
 
 Popup position, scale, and lock state live under `profile.popup`. Reminder position, scale, opacity, enabled spells, and shout warning thresholds live under `profile.overlays`. `/nt lock` and `/nt unlock` update popup and reminder lock state. Reminder protected spell buttons are pre-created and only rebound out of combat; combat-time aura changes may queue a protected-button refresh until combat ends.
+
+`/nt status` is the primary in-game diagnostic surface. It reports target capture, configured priorities, captured candidates, macro state, popup state, reminder state, and queued combat updates. Macro creation failures, truncation, and in-combat rebuild queues are reported through concise addon chat messages.
 
 ## Packaging
 

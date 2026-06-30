@@ -230,6 +230,15 @@ local function candidateSort(left, right)
 	return left.name < right.name
 end
 
+local function formatAge(lastSeen)
+	local now = getNow()
+	if type(lastSeen) ~= "number" or lastSeen <= 0 or now <= 0 then
+		return "age unknown"
+	end
+
+	return ("%ds ago"):format(math.max(0, math.floor(now - lastSeen)))
+end
+
 function addon:GetRaidMarkLabel(mark)
 	local metadata = raidMarks[mark]
 	return metadata and metadata.label or ("Mark " .. tostring(mark))
@@ -303,6 +312,27 @@ end
 
 function addon:GetPriorityCount()
 	return #self:GetPriorityList()
+end
+
+function addon:GetPriorityStatusLines(limit)
+	local priority = self:GetPriorityList()
+	local lines = {}
+	limit = limit or 8
+
+	if #priority == 0 then
+		lines[1] = "priority: none configured"
+		return lines
+	end
+
+	for index = 1, math.min(#priority, limit) do
+		lines[#lines + 1] = ("priority %d: %s"):format(index, self:GetPriorityEntryLabel(priority[index]))
+	end
+
+	if #priority > limit then
+		lines[#lines + 1] = ("priority: %d more not shown"):format(#priority - limit)
+	end
+
+	return lines
 end
 
 function addon:AddPriorityEntry(entry, addToTop)
@@ -471,4 +501,33 @@ end
 
 function addon:GetCapturedTargetCount()
 	return #self:GetCapturedTargets()
+end
+
+function addon:GetCapturedTargetStatusLines(limit)
+	local candidates = self:GetCapturedTargets()
+	local lines = {}
+	limit = limit or 8
+
+	if #candidates == 0 then
+		lines[1] = "captured: none"
+		return lines
+	end
+
+	for index = 1, math.min(#candidates, limit) do
+		local candidate = candidates[index]
+		local mark = candidate.mark and (" mark " .. self:GetRaidMarkLabel(candidate.mark)) or " no mark"
+		lines[#lines + 1] = ("captured %d: %s,%s, rank %d, %s"):format(
+			index,
+			candidate.name,
+			mark,
+			candidate.priorityRank or 0,
+			formatAge(candidate.lastSeen)
+		)
+	end
+
+	if #candidates > limit then
+		lines[#lines + 1] = ("captured: %d more not shown"):format(#candidates - limit)
+	end
+
+	return lines
 end

@@ -11,8 +11,10 @@ addon.MACRO_MAX_BODY_LENGTH = MAX_BODY_LENGTH
 local macroState = {
 	index = nil,
 	queued = false,
+	queueReported = false,
 	lastError = nil,
 	truncated = false,
+	truncationReported = false,
 }
 
 local function isInCombat()
@@ -156,6 +158,13 @@ local function reportOnce(message)
 	macroState.lastError = message
 end
 
+local function reportTruncationOnce(name, action)
+	if not macroState.truncationReported then
+		addon:Print(("Macro %s was %s with the highest-priority targets that fit. Lower-priority targets were omitted."):format(name, action))
+	end
+	macroState.truncationReported = true
+end
+
 function addon:InitializeMacro()
 	self:RequestMacroRebuild("addon loaded")
 end
@@ -185,6 +194,10 @@ function addon:RequestMacroRebuild(reason)
 
 	if isInCombat() then
 		macroState.queued = true
+		if not macroState.queueReported then
+			addon:Print("Macro rebuild queued until combat ends.")
+		end
+		macroState.queueReported = true
 		return false, "Macro rebuild queued until combat ends."
 	end
 
@@ -194,6 +207,7 @@ end
 function addon:HandleMacroRegenEnabled()
 	if macroState.queued then
 		macroState.queued = false
+		macroState.queueReported = false
 		self:EnsureMacro("combat ended")
 	end
 end
@@ -211,6 +225,9 @@ function addon:EnsureMacro(reason)
 	local candidates = self.GetCapturedTargets and self:GetCapturedTargets() or {}
 	local body, truncated = renderWritableBody(candidates)
 	macroState.truncated = truncated
+	if not truncated then
+		macroState.truncationReported = false
+	end
 
 	local existing, name, findError = findOwnedMacro()
 	if findError then
@@ -235,14 +252,14 @@ function addon:EnsureMacro(reason)
 		storeMacroIndex(existing.index, name)
 		macroState.lastError = nil
 		if truncated then
-			self:Print(("Macro %s was updated with the highest-priority targets that fit."):format(name))
+			reportTruncationOnce(name, "updated")
 		end
 		return true, existing.index
 	end
 
 	local ok, result = pcall(CreateMacro, name, DEFAULT_ICON, body, true)
 	if not ok or not result then
-		local message = ("Could not create macro %s. Character macro slots may be full."):format(name)
+		local message = ("Could not create macro %s; character macro slots may be full."):format(name)
 		reportOnce(message)
 		return false, message
 	end
@@ -250,7 +267,7 @@ function addon:EnsureMacro(reason)
 	storeMacroIndex(result, name)
 	macroState.lastError = nil
 	if truncated then
-		self:Print(("Macro %s was created with the highest-priority targets that fit."):format(name))
+		reportTruncationOnce(name, "created")
 	end
 	return true, result
 end

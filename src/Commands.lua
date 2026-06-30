@@ -48,6 +48,12 @@ function addon:PrintHelp()
 	end
 end
 
+local function printLines(addonInstance, lines)
+	for index = 1, #(lines or {}) do
+		addonInstance:Print(lines[index])
+	end
+end
+
 function addon:PrintStatus()
 	local profile = self:GetProfile()
 	if not profile then
@@ -63,13 +69,34 @@ function addon:PrintStatus()
 	local popupState = self.GetPopupState and self:GetPopupState() or {}
 	local reminderState = self.GetReminderState and self:GetReminderState() or {}
 
-	self:Print(("macro %s: %s"):format(macroState, profile.macro.name))
 	self:Print(("target capture: %s"):format(profile.targets.captureEnabled and "enabled" or "disabled"))
 	self:Print(("priority targets: %d"):format(priorityCount))
+	if self.GetPriorityStatusLines then
+		printLines(self, self:GetPriorityStatusLines(8))
+	end
 	self:Print(("captured targets: %d"):format(capturedCount))
+	if self.GetCapturedTargetStatusLines then
+		printLines(self, self:GetCapturedTargetStatusLines(8))
+	end
+	self:Print(("macro %s: %s"):format(macroState, profile.macro.name))
+	if state.index then
+		self:Print(("macro index: %d"):format(state.index))
+	end
+	if state.truncated then
+		self:Print("macro body: truncated to fit the Classic macro limit")
+	end
+	if state.queued then
+		self:Print("macro rebuild: queued until combat ends")
+	elseif state.lastError then
+		self:Print(("macro rebuild: %s"):format(state.lastError))
+	else
+		self:Print("macro rebuild: ready")
+	end
 	self:Print(("popup: %s, %d buttons prepared"):format(popupState.locked and "locked" or "unlocked", popupState.preparedCount or 0))
 	if popupState.queued then
 		self:Print("popup update: queued until combat ends")
+	else
+		self:Print("popup update: ready")
 	end
 	self:Print(("reminders: %s, target missing %d, shout %s"):format(
 		reminderState.locked and "locked" or "unlocked",
@@ -78,13 +105,8 @@ function addon:PrintStatus()
 	))
 	if reminderState.queued then
 		self:Print("reminder update: queued until combat ends")
-	end
-	if state.queued then
-		self:Print("macro rebuild: queued until combat ends")
-	elseif state.lastError then
-		self:Print(("macro rebuild: %s"):format(state.lastError))
-	elseif state.index then
-		self:Print(("macro index: %d"):format(state.index))
+	else
+		self:Print("reminder update: ready")
 	end
 	self:Print(("overlays: %s"):format(lockState))
 end
