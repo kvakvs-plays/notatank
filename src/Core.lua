@@ -10,6 +10,7 @@ local AceAddon = LibStub("AceAddon-3.0")
 --- @field DISPLAY_NAME string
 --- @field MACRO_OWNER_MARKER string
 --- @field MACRO_MAX_BODY_LENGTH number
+--- @field POPUP_BUTTON_COUNT number
 
 AceAddon:NewAddon(addon, addonName, "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0")
 
@@ -21,10 +22,28 @@ function addon:OnInitialize()
 	self:InitializeConfig()
 	self:InitializeMacro()
 	self:InitializeTargets()
+	self:InitializePopup()
 	self:InitializeOptions()
 	self:InitializeCommands()
+	self:RegisterEvent("PLAYER_REGEN_ENABLED", "HandlePlayerRegenEnabled")
+	self:RegisterEvent("PLAYER_REGEN_DISABLED", "HandlePlayerRegenDisabled")
 
 	if self:IsDebugEnabled() then
 		self:Print("loaded")
+	end
+end
+
+function addon:HandlePlayerRegenEnabled()
+	if self.HandleMacroRegenEnabled then
+		self:HandleMacroRegenEnabled()
+	end
+	if self.HandlePopupRegenEnabled then
+		self:HandlePopupRegenEnabled()
+	end
+end
+
+function addon:HandlePlayerRegenDisabled()
+	if self.HandlePopupRegenDisabled then
+		self:HandlePopupRegenDisabled()
 	end
 end

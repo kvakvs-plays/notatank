@@ -157,7 +157,6 @@ local function reportOnce(message)
 end
 
 function addon:InitializeMacro()
-	self:RegisterEvent("PLAYER_REGEN_ENABLED", "HandleMacroRegenEnabled")
 	self:RequestMacroRebuild("addon loaded")
 end
 

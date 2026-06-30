@@ -99,6 +99,9 @@ local function notifyTargetDataChanged(reason)
 	if addon.RequestMacroRebuild then
 		addon:RequestMacroRebuild(reason)
 	end
+	if addon.RequestPopupUpdate then
+		addon:RequestPopupUpdate(reason)
+	end
 end
 
 local function normalizeName(value)

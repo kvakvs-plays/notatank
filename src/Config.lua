@@ -25,6 +25,15 @@ local defaults = {
 			name = "Notatank",
 			rebuildOnChanges = true,
 		},
+		popup = {
+			locked = true,
+			positionPreset = "center",
+			point = "CENTER",
+			relativePoint = "CENTER",
+			x = 0,
+			y = 0,
+			scale = 1,
+		},
 		overlays = {
 			locked = true,
 			scale = 1,

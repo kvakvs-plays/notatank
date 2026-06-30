@@ -22,5 +22,6 @@ src\Core.lua
 src\Config.lua
 src\Targets.lua
 src\Macro.lua
+src\Popup.lua
 src\Options.lua
 src\Commands.lua

@@ -40,6 +40,31 @@ local function setMacroPath(key)
 	end
 end
 
+local function getPopupPath(key)
+	return function()
+		local profile = addon:GetProfile()
+		return profile and profile.popup and profile.popup[key]
+	end
+end
+
+local function setPopupLocked(_, value)
+	if addon.SetPopupLocked then
+		addon:SetPopupLocked(value)
+	end
+end
+
+local function setPopupScale(_, value)
+	if addon.SetPopupScale then
+		addon:SetPopupScale(value)
+	end
+end
+
+local function setPopupPositionPreset(_, value)
+	if addon.SetPopupPositionPreset then
+		addon:SetPopupPositionPreset(value)
+	end
+end
+
 local function getNested(rootKey, groupKey, key)
 	return function()
 		local profile = addon:GetProfile()
@@ -251,6 +276,49 @@ local function buildOptions()
 						desc = "Add the current target's name as the top priority entry. This is safe in or out of combat because it only changes saved options.",
 						order = 100,
 						func = addCurrentTarget,
+					},
+					popupHeader = {
+						type = "header",
+						name = "Combat popup",
+						order = 110,
+					},
+					popupLocked = {
+						type = "toggle",
+						name = "Lock popup",
+						desc = "Lock or unlock the combat target popup. Slash commands: /nt lock and /nt unlock.",
+						order = 120,
+						get = getPopupPath("locked"),
+						set = setPopupLocked,
+					},
+					popupScale = {
+						type = "range",
+						name = "Popup scale",
+						desc = "Scale the combat target popup.",
+						order = 130,
+						min = 0.6,
+						max = 2,
+						step = 0.05,
+						get = getPopupPath("scale"),
+						set = setPopupScale,
+					},
+					popupPosition = {
+						type = "select",
+						name = "Popup position",
+						desc = "Choose a starting position. Drag the popup while unlocked to save a custom position.",
+						order = 140,
+						values = {
+							center = "Center",
+							left = "Left",
+							right = "Right",
+							top = "Top",
+							bottom = "Bottom",
+							custom = "Custom",
+						},
+						get = function()
+							local profile = addon:GetProfile()
+							return profile and profile.popup and profile.popup.positionPreset or "center"
+						end,
+						set = setPopupPositionPreset,
 					},
 				},
 			},

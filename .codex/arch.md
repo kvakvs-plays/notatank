@@ -1,6 +1,6 @@
 # Notatank Architecture
 
-Notatank is a World of Warcraft Classic TBC addon built around Ace3. The addon currently implements the loadable foundation from implementation steps 1 through 9: lifecycle setup, saved profile defaults, slash command routing, target priority data, safe macro maintenance, and mouseover target capture.
+Notatank is a World of Warcraft Classic TBC addon built around Ace3. The addon currently implements the loadable foundation from implementation steps 1 through 11: lifecycle setup, saved profile defaults, slash command routing, target priority data, safe macro maintenance, mouseover target capture, and the combat target popup.
 
 ## Load Order
 
@@ -10,8 +10,9 @@ Notatank is a World of Warcraft Classic TBC addon built around Ace3. The addon c
 2. `src/Config.lua` defines AceDB defaults and initializes `NotatankDB`.
 3. `src/Targets.lua` defines raid mark metadata, priority-list helpers, and mouseover capture.
 4. `src/Macro.lua` renders and maintains the addon-owned macro.
-5. `src/Options.lua` registers the AceConfig options table and Interface Options entry.
-6. `src/Commands.lua` registers `/notatank` and `/nt`.
+5. `src/Popup.lua` pre-creates secure target buttons and handles popup placement.
+6. `src/Options.lua` registers the AceConfig options table and Interface Options entry.
+7. `src/Commands.lua` registers `/notatank` and `/nt`.
 
 ## Runtime Shape
 
@@ -21,11 +22,13 @@ Saved data is profile-scoped through AceDB. Target priority data lives at `profi
 
 Captured targets are in-memory only. `UPDATE_MOUSEOVER_UNIT` records hostile mouseover units outside combat when they match the configured priority list by raid mark or by name prefix. Candidates store name, raid mark, GUID-or-name key, priority rank, and last seen time, and are sorted by priority rank then recency.
 
+The combat popup is a fixed pool of secure action buttons prepared out of combat from the captured target list. Button macro attributes are never changed in combat. Visibility is controlled by a secure state driver where available: the popup shows in combat when prepared candidates exist, otherwise it stays hidden. While unlocked, a placement visual is shown out of combat so the frame can be dragged and saved.
+
 ## Current Boundaries
 
 The addon owns one macro by configured name and marks its body with an ownership line before editing it later. Macro creation and edits only run out of combat; rebuild requests during combat are queued until `PLAYER_REGEN_ENABLED`. The macro body renders unique captured names as ordered `/tar [nodead] <name>` lines plus `/startattack`, truncating to the Classic macro body limit by keeping the highest-priority lines that fit.
 
-No protected popup frames, combat targeting buttons, or reminder behavior exist yet. `/nt target` reads the current target name, if one exists, and stores it as the top priority entry.
+Popup position, scale, and lock state live under `profile.popup`. `/nt lock` and `/nt unlock` update the popup lock state and the existing overlay lock placeholder. Reminder behavior does not exist yet. `/nt target` reads the current target name, if one exists, and stores it as the top priority entry.
 
 ## Packaging
 
