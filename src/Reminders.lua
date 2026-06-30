@@ -45,6 +45,27 @@ local playerBuffsByClass = {
 		{ key = "battleShout", spell = "Battle Shout", icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
 		{ key = "commandingShout", spell = "Commanding Shout", icon = "Interface\\Icons\\Ability_Warrior_RallyingCry" },
 	},
+	ROGUE = {
+		{ key = "sliceAndDice", spell = "Slice and Dice", icon = "Interface\\Icons\\Ability_Rogue_SliceDice" },
+	},
+	HUNTER = {
+		{ key = "aspectOfTheHawk", spell = "Aspect of the Hawk", icon = "Interface\\Icons\\Spell_Nature_RavenForm" },
+		{ key = "aspectOfTheViper", spell = "Aspect of the Viper", icon = "Interface\\Icons\\Ability_Hunter_AspectoftheViper" },
+	},
+	WARLOCK = {
+		{ key = "demonSkin", spell = "Demon Skin", icon = "Interface\\Icons\\Spell_Shadow_RagingScream" },
+		{ key = "demonArmor", spell = "Demon Armor", icon = "Interface\\Icons\\Spell_Shadow_RagingScream" },
+		{ key = "felArmor", spell = "Fel Armor", icon = "Interface\\Icons\\Spell_Shadow_FelArmour" },
+	},
+	SHAMAN = {
+		{ key = "waterShield", spell = "Water Shield", icon = "Interface\\Icons\\Ability_Shaman_WaterShield" },
+		{ key = "lightningShield", spell = "Lightning Shield", icon = "Interface\\Icons\\Spell_Nature_LightningShield" },
+	},
+	MAGE = {
+		{ key = "mageArmor", spell = "Mage Armor", icon = "Interface\\Icons\\Spell_MageArmor" },
+		{ key = "moltenArmor", spell = "Molten Armor", icon = "Interface\\Icons\\Ability_Mage_MoltenArmor" },
+		{ key = "frostArmor", spell = "Frost Armor", icon = "Interface\\Icons\\Spell_Frost_FrostArmor02" },
+	},
 }
 
 local reminders = {
