@@ -61,6 +61,7 @@ function addon:PrintStatus()
 	local capturedCount = self.GetCapturedTargetCount and self:GetCapturedTargetCount() or 0
 	local state = self.GetMacroState and self:GetMacroState() or {}
 	local popupState = self.GetPopupState and self:GetPopupState() or {}
+	local reminderState = self.GetReminderState and self:GetReminderState() or {}
 
 	self:Print(("macro %s: %s"):format(macroState, profile.macro.name))
 	self:Print(("target capture: %s"):format(profile.targets.captureEnabled and "enabled" or "disabled"))
@@ -69,6 +70,14 @@ function addon:PrintStatus()
 	self:Print(("popup: %s, %d buttons prepared"):format(popupState.locked and "locked" or "unlocked", popupState.preparedCount or 0))
 	if popupState.queued then
 		self:Print("popup update: queued until combat ends")
+	end
+	self:Print(("reminders: %s, target missing %d, shout %s"):format(
+		reminderState.locked and "locked" or "unlocked",
+		reminderState.targetMissingCount or 0,
+		reminderState.shoutActive and "active" or "inactive"
+	))
+	if reminderState.queued then
+		self:Print("reminder update: queued until combat ends")
 	end
 	if state.queued then
 		self:Print("macro rebuild: queued until combat ends")
@@ -108,6 +117,9 @@ function addon:SetOverlayLock(locked)
 	profile.overlays.locked = locked and true or false
 	if self.SetPopupLocked then
 		self:SetPopupLocked(locked)
+	end
+	if self.SetRemindersLocked then
+		self:SetRemindersLocked(locked)
 	end
 	self:Print(("Notatank frames are %s."):format(profile.overlays.locked and "locked" or "unlocked"))
 end

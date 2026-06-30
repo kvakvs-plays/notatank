@@ -17,6 +17,7 @@
 - `src/Targets.lua` - Owns raid mark metadata, target priority entry normalization, add/remove/reorder helpers, current-target name capture, mouseover hostile target capture, and captured-target sorting/filtering.
 - `src/Macro.lua` - Owns macro constants, pure macro rendering, addon-owned macro discovery/creation/update, combat queueing, and macro status state.
 - `src/Popup.lua` - Owns the fixed secure target button pool, out-of-combat button preparation, secure combat visibility, drag positioning, scale, and popup lock state.
+- `src/Reminders.lua` - Owns target debuff reminder buttons, warrior shout reminder button, out-of-combat protected spell binding, aura checks, drag positioning, scale, opacity, and reminder lock state.
 - `src/Options.lua` - Registers the AceConfig/AceConfigDialog options UI with editable target priority controls plus `Macro`, `Reminders`, and `Profiles` tabs.
 - `src/Commands.lua` - Registers `/notatank` and `/nt`; opens options by default and handles `target`, `rebuild`, `status`, `lock`, `unlock`, and unknown-command help.
 

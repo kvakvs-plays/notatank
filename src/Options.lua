@@ -85,6 +85,65 @@ local function setNested(rootKey, groupKey, key)
 	end
 end
 
+local function setReminderLocked(_, value)
+	if addon.SetRemindersLocked then
+		addon:SetRemindersLocked(value)
+	end
+end
+
+local function setReminderScale(_, value)
+	if addon.SetReminderScale then
+		addon:SetReminderScale(value)
+	end
+end
+
+local function setReminderOpacity(_, value)
+	if addon.SetReminderOpacity then
+		addon:SetReminderOpacity(value)
+	end
+end
+
+local function getReminderSpell(groupKey, spellKey)
+	return function()
+		local profile = addon:GetProfile()
+		local group = profile and profile.overlays and profile.overlays[groupKey]
+		return not group or not group.spells or group.spells[spellKey] ~= false
+	end
+end
+
+local function setReminderSpell(groupKey, spellKey)
+	return function(_, value)
+		local profile = addon:GetProfile()
+		local group = profile and profile.overlays and profile.overlays[groupKey]
+		if group then
+			group.spells = group.spells or {}
+			group.spells[spellKey] = value and true or false
+			if addon.RefreshTargetDebuffs then
+				addon:RefreshTargetDebuffs()
+			end
+			if addon.RefreshPlayerBuffs then
+				addon:RefreshPlayerBuffs()
+			end
+		end
+	end
+end
+
+local function getReminderPosition(kind)
+	return function()
+		local profile = addon:GetProfile()
+		local group = profile and profile.overlays and profile.overlays[kind]
+		return group and group.positionPreset or "center"
+	end
+end
+
+local function setReminderPosition(kind)
+	return function(_, value)
+		if addon.SetReminderPositionPreset then
+			addon:SetReminderPositionPreset(kind, value)
+		end
+	end
+end
+
 local function getSelectedPriorityIndex()
 	local priority = addon:GetPriorityList()
 	if selectedPriorityIndex and selectedPriorityIndex >= 1 and selectedPriorityIndex <= #priority then
@@ -379,48 +438,181 @@ local function buildOptions()
 			locked = {
 				type = "toggle",
 				name = "Lock frames",
-				desc = "Controls the current placeholder lock state. Slash commands: /nt lock and /nt unlock.",
+				desc = "Locks the popup and reminder frames. Slash commands: /nt lock and /nt unlock.",
 				order = 10,
 				get = getPath("overlays", "locked"),
-				set = setPath("overlays", "locked"),
+				set = setReminderLocked,
 			},
 			scale = {
 				type = "range",
 				name = "Scale",
-				desc = "Saved placeholder scale for reminder overlays.",
+				desc = "Scale for reminder overlays.",
 				order = 20,
 				min = 0.5,
 				max = 2,
 				step = 0.05,
 				get = getPath("overlays", "scale"),
-				set = setPath("overlays", "scale"),
+				set = setReminderScale,
 			},
 			opacity = {
 				type = "range",
 				name = "Opacity",
-				desc = "Saved placeholder opacity for reminder overlays.",
+				desc = "Opacity for reminder overlays.",
 				order = 30,
 				min = 0.2,
 				max = 1,
 				step = 0.05,
 				get = getPath("overlays", "opacity"),
-				set = setPath("overlays", "opacity"),
+				set = setReminderOpacity,
 			},
 			targetDebuffs = {
 				type = "toggle",
 				name = "Target debuff reminders",
-				desc = "Placeholder setting for future target debuff reminders.",
+				desc = "Show missing class debuffs on the current hostile target.",
 				order = 40,
 				get = getNested("overlays", "targetDebuffs", "enabled"),
-				set = setNested("overlays", "targetDebuffs", "enabled"),
+				set = function(_, value)
+					setNested("overlays", "targetDebuffs", "enabled")(_, value)
+					if addon.RefreshTargetDebuffs then
+						addon:RefreshTargetDebuffs()
+					end
+				end,
 			},
 			shouts = {
 				type = "toggle",
 				name = "Warrior shout reminders",
-				desc = "Placeholder setting for future warrior shout reminders.",
+				desc = "Show a warrior shout reminder in combat when the player's shout is missing or near expiry.",
 				order = 50,
 				get = getNested("overlays", "shouts", "enabled"),
-				set = setNested("overlays", "shouts", "enabled"),
+				set = function(_, value)
+					setNested("overlays", "shouts", "enabled")(_, value)
+					if addon.RefreshPlayerBuffs then
+						addon:RefreshPlayerBuffs()
+					end
+				end,
+			},
+			targetPosition = {
+				type = "select",
+				name = "Target reminder position",
+				desc = "Choose a starting position. Unlock and drag the frame to save a custom position.",
+				order = 60,
+				values = {
+					left = "Left",
+					center = "Center",
+					right = "Right",
+					custom = "Custom",
+				},
+				get = getReminderPosition("targetDebuffs"),
+				set = setReminderPosition("targetDebuffs"),
+			},
+			shoutPosition = {
+				type = "select",
+				name = "Shout reminder position",
+				desc = "Choose a starting position. Unlock and drag the frame to save a custom position.",
+				order = 70,
+				values = {
+					left = "Left",
+					center = "Center",
+					right = "Right",
+					custom = "Custom",
+				},
+				get = getReminderPosition("shouts"),
+				set = setReminderPosition("shouts"),
+			},
+			warriorHeader = {
+				type = "header",
+				name = "Warrior",
+				order = 80,
+			},
+			thunderClap = {
+				type = "toggle",
+				name = "Thunder Clap",
+				desc = "Remind when Thunder Clap is missing from the current hostile target.",
+				order = 90,
+				get = getReminderSpell("targetDebuffs", "thunderClap"),
+				set = setReminderSpell("targetDebuffs", "thunderClap"),
+			},
+			demoralizingShout = {
+				type = "toggle",
+				name = "Demoralizing Shout",
+				desc = "Remind when Demoralizing Shout is missing from the current hostile target.",
+				order = 100,
+				get = getReminderSpell("targetDebuffs", "demoralizingShout"),
+				set = setReminderSpell("targetDebuffs", "demoralizingShout"),
+			},
+			battleShout = {
+				type = "toggle",
+				name = "Battle Shout",
+				desc = "Allow Battle Shout as a warrior shout reminder.",
+				order = 110,
+				get = getReminderSpell("shouts", "battleShout"),
+				set = setReminderSpell("shouts", "battleShout"),
+			},
+			commandingShout = {
+				type = "toggle",
+				name = "Commanding Shout",
+				desc = "Allow Commanding Shout as a warrior shout reminder.",
+				order = 120,
+				get = getReminderSpell("shouts", "commandingShout"),
+				set = setReminderSpell("shouts", "commandingShout"),
+			},
+			paladinHeader = {
+				type = "header",
+				name = "Paladin",
+				order = 130,
+			},
+			judgement = {
+				type = "toggle",
+				name = "Judgement",
+				desc = "Remind when Judgement is missing from the current hostile target.",
+				order = 140,
+				get = getReminderSpell("targetDebuffs", "judgement"),
+				set = setReminderSpell("targetDebuffs", "judgement"),
+			},
+			druidHeader = {
+				type = "header",
+				name = "Bear druid",
+				order = 150,
+			},
+			faerieFire = {
+				type = "toggle",
+				name = "Faerie Fire",
+				desc = "Remind when Faerie Fire is missing from the current hostile target while in bear form.",
+				order = 160,
+				get = getReminderSpell("targetDebuffs", "faerieFire"),
+				set = setReminderSpell("targetDebuffs", "faerieFire"),
+			},
+			demoralizingRoar = {
+				type = "toggle",
+				name = "Demoralizing Roar",
+				desc = "Remind when Demoralizing Roar is missing from the current hostile target while in bear form.",
+				order = 170,
+				get = getReminderSpell("targetDebuffs", "demoralizingRoar"),
+				set = setReminderSpell("targetDebuffs", "demoralizingRoar"),
+			},
+			mangle = {
+				type = "toggle",
+				name = "Mangle",
+				desc = "Remind when Mangle is missing from the current hostile target while in bear form.",
+				order = 180,
+				get = getReminderSpell("targetDebuffs", "mangle"),
+				set = setReminderSpell("targetDebuffs", "mangle"),
+			},
+			warningSeconds = {
+				type = "range",
+				name = "Shout warning seconds",
+				desc = "Show shout reminders when the player's active shout has this many seconds or less remaining.",
+				order = 190,
+				min = 5,
+				max = 60,
+				step = 1,
+				get = getNested("overlays", "shouts", "warningSeconds"),
+				set = function(_, value)
+					setNested("overlays", "shouts", "warningSeconds")(_, value)
+					if addon.RefreshPlayerBuffs then
+						addon:RefreshPlayerBuffs()
+					end
+				end,
 			},
 		},
 	}

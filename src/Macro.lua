@@ -1,7 +1,7 @@
 ---@type string, NotAddon
 local addonName, addon = ...
 
-local OWNER_MARKER = "# Notatank:owned"
+local OWNER_MARKER = "# Notatank addon"
 local DEFAULT_ICON = "INV_MISC_QUESTIONMARK"
 local MAX_BODY_LENGTH = 255
 
