@@ -7,8 +7,6 @@ local TARGET_BUTTON_COUNT = 4
 local SHOUT_BUTTON_COUNT = 1
 local DEFAULT_WARNING_SECONDS = 15
 
-_G["NOTATANK_DEBUG"] = false
-
 local targetDebuffsByClass = {
 	WARRIOR = {
 		{ key = "thunderClap", spell = "Thunder Clap", icon = "Interface\\Icons\\Spell_Nature_ThunderClap" },
@@ -19,8 +17,19 @@ local targetDebuffsByClass = {
 	},
 	DRUID = {
 		{ key = "faerieFire", spell = "Faerie Fire", icon = "Interface\\Icons\\Spell_Nature_FaerieFire" },
-		{ key = "demoralizingRoar", spell = "Demoralizing Roar", icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar" },
-		{ key = "mangle", spell = "Mangle", icon = "Interface\\Icons\\Ability_Druid_Mangle2" },
+		{ key = "insectSwarm", spell = "Insect Swarm", icon = "Interface\\Icons\\Spell_Nature_InsectSwarm" },
+		{ key = "demoralizingRoar", spell = "Demoralizing Roar", icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar", requires = "bearForm" },
+		{ key = "mangle", spell = "Mangle", icon = "Interface\\Icons\\Ability_Druid_Mangle2", requires = "bearForm" },
+	},
+	HUNTER = {
+		{ key = "huntersMark", spell = "Hunter's Mark", icon = "Interface\\Icons\\Ability_Hunter_SniperShot" },
+		{ key = "serpentSting", spell = "Serpent Sting", icon = "Interface\\Icons\\Ability_Hunter_Quickshot" },
+		{ key = "scorpidSting", spell = "Scorpid Sting", icon = "Interface\\Icons\\Ability_Hunter_CriticalShot" },
+	},
+	PRIEST = {
+		{ key = "vampiricTouch", spell = "Vampiric Touch", icon = "Interface\\Icons\\Spell_Holy_Stoicism", requires = "shadowForm" },
+		{ key = "vampiricEmbrace", spell = "Vampiric Embrace", icon = "Interface\\Icons\\Spell_Shadow_UnsummonBuilding", requires = "shadowForm" },
+		{ key = "shadowWordPain", spell = "Shadow Word: Pain", icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain", requires = "shadowForm" },
 	},
 }
 
@@ -39,40 +48,6 @@ local reminders = {
 
 addon.REMINDER_TARGET_BUTTON_COUNT = TARGET_BUTTON_COUNT
 addon.REMINDER_SHOUT_BUTTON_COUNT = SHOUT_BUTTON_COUNT
-
-local function debugLog(message)
-	if not _G["NOTATANK_DEBUG"] then
-		return
-	end
-
-	if addon and type(addon.Print) == "function" then
-		addon:Print("[debug] " .. message)
-	elseif type(DEFAULT_CHAT_FRAME) == "table" and type(DEFAULT_CHAT_FRAME.AddMessage) == "function" then
-		DEFAULT_CHAT_FRAME:AddMessage("Notatank [debug] " .. message)
-	elseif type(print) == "function" then
-		print("Notatank [debug] " .. message)
-	end
-end
-
-local function debugValue(value)
-	if value == nil then
-		return "nil"
-	end
-
-	return tostring(value)
-end
-
-local function debugEmptyTargetDebuffs(reason)
-	debugLog(("target debuffs result: no icons because %s"):format(reason))
-end
-
-local function shouldDebugAura(unit, filter)
-	return unit == "target" and filter == "HARMFUL"
-end
-
-local function shouldDebugReminder(kind)
-	return kind == "targetDebuffs"
-end
 
 local function isInCombat()
 	return type(InCombatLockdown) == "function" and InCombatLockdown()
@@ -157,24 +132,21 @@ local function setRegionShown(region, shown)
 	end
 end
 
-local function unitCanAttack(unit)
-	return type(UnitCanAttack) == "function" and UnitCanAttack("player", unit)
-end
-
 local function unitExists(unit)
 	return type(UnitExists) == "function" and UnitExists(unit)
 end
 
-local function unitIsDead(unit)
-	return type(UnitIsDead) == "function" and UnitIsDead(unit)
-end
-
-local function unitName(unit)
-	if type(UnitName) ~= "function" then
-		return nil
+local function unitIsHostile(unit)
+	if type(UnitReaction) == "function" then
+		local reaction = UnitReaction(unit, "player")
+		return type(reaction) == "number" and reaction <= 3
 	end
 
-	return UnitName(unit)
+	return type(UnitCanAttack) == "function" and UnitCanAttack("player", unit)
+end
+
+local function unitIsDead(unit)
+	return type(UnitIsDead) == "function" and UnitIsDead(unit)
 end
 
 local function isBearForm()
@@ -202,18 +174,13 @@ end
 
 local function findAura(unit, spell, filter)
 	local auraFunc = filter == "HELPFUL" and UnitBuff or UnitDebuff
-	local searchedAuras = 0
 	if type(auraFunc) == "function" then
 		for index = 1, 40 do
 			local name, rank, icon, count, debuffType, duration, expirationTime, caster = auraFunc(unit, index)
 			if not name then
 				break
 			end
-			searchedAuras = searchedAuras + 1
 			if auraNameMatches(name, spell) then
-				if shouldDebugAura(unit, filter) then
-					debugLog(("found %s aura for %s on %s via %s at index %d"):format(filter, spell, unit, filter == "HELPFUL" and "UnitBuff" or "UnitDebuff", index))
-				end
 				return {
 					name = name,
 					icon = icon,
@@ -231,11 +198,7 @@ local function findAura(unit, spell, filter)
 			if not name then
 				break
 			end
-			searchedAuras = searchedAuras + 1
 			if auraNameMatches(name, spell) then
-				if shouldDebugAura(unit, filter) then
-					debugLog(("found %s aura for %s on %s via UnitAura at index %d"):format(filter, spell, unit, index))
-				end
 				return {
 					name = name,
 					icon = icon,
@@ -247,10 +210,21 @@ local function findAura(unit, spell, filter)
 		end
 	end
 
-	if shouldDebugAura(unit, filter) then
-		debugLog(("missing %s aura for %s on %s after scanning %d aura slots"):format(filter, spell, unit, searchedAuras))
-	end
 	return nil
+end
+
+local function isShadowForm()
+	return findAura("player", "Shadowform", "HELPFUL") ~= nil
+end
+
+local function requirementMet(requirement)
+	if requirement == "bearForm" then
+		return isBearForm()
+	elseif requirement == "shadowForm" then
+		return isShadowForm()
+	end
+
+	return true
 end
 
 local function spellEnabled(settings, key)
@@ -260,70 +234,37 @@ end
 local function getTargetDebuffSpells()
 	local settings = getFrameSettings("targetDebuffs")
 	if not settings then
-		debugLog("target debuffs skipped: overlay settings are not ready")
-		debugEmptyTargetDebuffs("overlay settings are not ready")
 		return {}
 	end
 
 	if not settings.enabled then
-		debugLog("target debuffs skipped: targetDebuffs overlay is disabled")
-		debugEmptyTargetDebuffs("target debuff reminders are disabled")
 		return {}
 	end
 
 	local targetExists = unitExists("target")
-	local targetAttackable = unitCanAttack("target")
+	local targetHostile = unitIsHostile("target")
 	local targetDead = unitIsDead("target")
-	if not targetExists or not targetAttackable or targetDead then
-		debugLog(("target debuffs skipped: targetExists=%s targetAttackable=%s targetDead=%s"):format(
-			debugValue(targetExists),
-			debugValue(targetAttackable),
-			debugValue(targetDead)
-		))
-		debugEmptyTargetDebuffs(("target is not a live hostile unit (name=%s exists=%s attackable=%s dead=%s)"):format(
-			debugValue(unitName("target")),
-			debugValue(targetExists),
-			debugValue(targetAttackable),
-			debugValue(targetDead)
-		))
+	if not targetExists or not targetHostile or targetDead then
 		return {}
 	end
 
 	local classFile = getPlayerClass()
-	debugLog(("target debuffs checking class=%s"):format(debugValue(classFile)))
-	if classFile == "DRUID" and not isBearForm() then
-		debugLog("target debuffs skipped: druid is not in bear form")
-		debugEmptyTargetDebuffs("druid is not in bear form")
-		return {}
-	end
-
 	local spells = targetDebuffsByClass[classFile] or {}
 	if #spells == 0 then
-		debugLog(("target debuffs skipped: no configured target debuffs for class=%s"):format(debugValue(classFile)))
-		debugEmptyTargetDebuffs(("player class has no configured target debuffs (class=%s)"):format(debugValue(classFile)))
 		return {}
 	end
 
 	local missing = {}
 	for index = 1, #spells do
 		local spell = spells[index]
-		if spellEnabled(settings, spell.key) then
+		if spellEnabled(settings, spell.key) and requirementMet(spell.requires) then
 			local aura = findAura("target", spell.spell, "HARMFUL")
 			if not aura then
-				debugLog(("target debuff missing: %s (%s)"):format(spell.spell, spell.key))
 				missing[#missing + 1] = spell
-			else
-				debugLog(("target debuff present: %s matched %s"):format(spell.spell, debugValue(aura.name)))
 			end
-		else
-			debugLog(("target debuff disabled in options: %s (%s)"):format(spell.spell, spell.key))
 		end
 	end
 
-	debugLog(("target debuffs missing count=%d"):format(#missing))
-	if #missing == 0 then
-		debugEmptyTargetDebuffs("all enabled configured target debuffs are already present or disabled")
-	end
 	return missing
 end
 
@@ -412,9 +353,6 @@ end
 local function setVisibilityDriver(kind, active)
 	local frameState = reminders.frames[kind]
 	if not frameState then
-		if shouldDebugReminder(kind) then
-			debugLog(("visibility skipped for %s: frame state missing"):format(kind))
-		end
 		return
 	end
 
@@ -431,15 +369,6 @@ local function setVisibilityDriver(kind, active)
 		shown = false
 	end
 
-	if shouldDebugReminder(kind) then
-		debugLog(("visibility for %s: active=%s unlocked=%s shown=%s"):format(
-			kind,
-			debugValue(active),
-			debugValue(unlocked),
-			debugValue(shown)
-		))
-	end
-
 	if shown then
 		frameState.frame:Show()
 	else
@@ -447,10 +376,7 @@ local function setVisibilityDriver(kind, active)
 	end
 end
 
-local function configureIcon(icon, spell, kind)
-	if shouldDebugReminder(kind) then
-		debugLog(("configure reminder icon: %s"):format(spell.spell))
-	end
+local function configureIcon(icon, spell)
 	icon.texture:SetTexture(getSpellIcon(spell.spell, spell.icon))
 	if icon.countdown then
 		icon.countdown:SetText("")
@@ -469,21 +395,15 @@ end
 local function prepareReminderIcons(kind, spells)
 	local frameState = reminders.frames[kind]
 	if not frameState then
-		if shouldDebugReminder(kind) then
-			debugLog(("prepare %s failed: frame state missing"):format(kind))
-		end
 		return false
 	end
 
 	spells = spells or {}
-	if shouldDebugReminder(kind) then
-		debugLog(("prepare %s icons: spells=%d icons=%d inCombat=%s"):format(kind, #spells, frameState.buttonCount, debugValue(isInCombat())))
-	end
 	for index = 1, frameState.buttonCount do
 		local icon = frameState.items[index]
 		local spell = spells[index]
 		if spell then
-			configureIcon(icon, spell, kind)
+			configureIcon(icon, spell)
 		else
 			clearIcon(icon)
 		end
@@ -577,7 +497,6 @@ local function createReminderFrame(kind, buttonCount)
 end
 
 local function refreshTargetDebuffs()
-	debugLog("refresh target debuffs requested")
 	local missing = getTargetDebuffSpells()
 	reminders.targetMissingCount = #missing
 	return prepareReminderIcons("targetDebuffs", missing)
@@ -601,7 +520,6 @@ local function refreshPlayerShouts()
 end
 
 function addon:InitializeReminders()
-	debugLog("initialize reminders")
 	createReminderFrame("targetDebuffs", TARGET_BUTTON_COUNT)
 	createReminderFrame("shouts", SHOUT_BUTTON_COUNT)
 
@@ -624,7 +542,6 @@ end
 
 function addon:HandleReminderUnitAura(event, unit)
 	if unit == "target" then
-		debugLog(("target aura event: %s"):format(debugValue(event)))
 		self:RefreshTargetDebuffs()
 	elseif unit == "player" then
 		self:RefreshPlayerBuffs()
@@ -649,7 +566,6 @@ function addon:HandleReminderSpellcastSucceeded(event, unit, castGuid, spellId)
 end
 
 function addon:HandleRemindersRegenEnabled()
-	debugLog("player left combat: refreshing reminders")
 	self:RefreshTargetDebuffs()
 	self:RefreshPlayerBuffs()
 end
@@ -658,7 +574,6 @@ function addon:HandleRemindersRegenDisabled()
 	if not isInCombat() then
 		return
 	end
-	debugLog("player entered combat: refreshing reminders")
 	self:RefreshTargetDebuffs()
 	self:RefreshPlayerBuffs()
 end
