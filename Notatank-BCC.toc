@@ -1,6 +1,6 @@
 ## Interface: 20505
 ## Title: Notatank
-## Notes: Tank target and reminder tools for WoW Classic TBC.
+## Notes: Target debuff, self-buff reminders and tank-target assist for WoW Classic TBC.
 ## Author: Notatank
 ## Version: 0.1.0
 ## SavedVariables: NotatankDB

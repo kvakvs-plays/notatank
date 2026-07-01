@@ -562,7 +562,7 @@ local function buildOptions()
 			sunderArmor = {
 				type = "toggle",
 				name = "Sunder Armor",
-				desc = "Remind until Sunder Armor reaches 5 stacks on the current hostile target.",
+				desc = "Remind until Sunder Armor reaches 5 stacks or Expose Armor is present on the current hostile target.",
 				order = 105,
 				hidden = hiddenForClass("WARRIOR"),
 				get = getReminderSpell("targetDebuffs", "sunderArmor"),

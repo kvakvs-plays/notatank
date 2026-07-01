@@ -12,6 +12,7 @@ local DEFAULT_WARNING_SECONDS = 15
 --- @field spell string TODO: spell ids instead of spell names, for all ranks
 --- @field icon string
 --- @field requiredStacks? number
+--- @field auraSpells? table Extra aura names that can satisfy this target debuff reminder
 
 --- @class NotBuffReminder
 --- @field key string
@@ -26,7 +27,7 @@ local targetDebuffsByClass = {
 	WARRIOR = {
 		{ key = "thunderClap",       spell = "Thunder Clap",       icon = "Interface\\Icons\\Spell_Nature_ThunderClap" },
 		{ key = "demoralizingShout", spell = "Demoralizing Shout", icon = "Interface\\Icons\\Ability_Warrior_WarCry" },
-		{ key = "sunderArmor",       spell = "Sunder Armor",       icon = "Interface\\Icons\\Ability_Warrior_Sunder",  requiredStacks = 5 },
+		{ key = "sunderArmor",       spell = "Sunder Armor",       icon = "Interface\\Icons\\Ability_Warrior_Sunder",  requiredStacks = 5, auraSpells = { "Expose Armor" } },
 	},
 	PALADIN = {
 		{ key = "judgement", spell = "Judgement", icon = "Interface\\Icons\\Spell_Holy_RighteousFury" },
@@ -290,6 +291,38 @@ local function findReminderAura(unit, spell, filter)
 	return nil
 end
 
+local function findReminderAuraAlias(unit, spell, filter)
+	local auraSpells = spell.auraSpells
+	if type(auraSpells) ~= "table" then
+		return nil
+	end
+
+	for index = 1, #auraSpells do
+		local aura = findAura(unit, auraSpells[index], filter)
+		if aura then
+			return aura
+		end
+	end
+
+	return nil
+end
+
+local function targetDebuffSatisfied(spell)
+	local aura = findAura("target", spell.spell, "HARMFUL")
+	if aura then
+		if not spell.requiredStacks then
+			return true
+		end
+
+		local stackCount = tonumber(aura.count)
+		if stackCount and stackCount >= spell.requiredStacks then
+			return true
+		end
+	end
+
+	return findReminderAuraAlias("target", spell, "HARMFUL") ~= nil
+end
+
 local function isShadowForm()
 	return findAura("player", "Shadowform", "HELPFUL") ~= nil
 end
@@ -335,14 +368,8 @@ local function getTargetDebuffSpells()
 	for index = 1, #spells do
 		local spell = spells[index]
 		if spellEnabled(settings, spell.key) and requirementMet(spell.requires) then
-			local aura = findAura("target", spell.spell, "HARMFUL")
-			if not aura then
+			if not targetDebuffSatisfied(spell) then
 				missing[#missing + 1] = spell
-			elseif spell.requiredStacks then
-				local stackCount = tonumber(aura.count)
-				if not stackCount or stackCount < spell.requiredStacks then
-					missing[#missing + 1] = spell
-				end
 			end
 		end
 	end
