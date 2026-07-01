@@ -24,6 +24,8 @@ Guidance for agents working on Notatank, a World of Warcraft addon written in Lu
 - Treat saved variables as a migration boundary. Add defaults and migration code when changing saved data shape.
 - Maintain current addon architecture in `.codex/arch.md` and if something changes - keep this file updated.
 - Maintain current module brief descriptions and file map in `.codex/map.md` and if something changes, if files are created, renamed or deleted - keep this file updated.
+- For new code maintain a comment before each function or important class/struct/enum with the intent why this exists.
+  - For modified code if such comment is missing, update it.
 
 ## Ace3 Usage
 

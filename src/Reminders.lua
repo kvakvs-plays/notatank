@@ -9,16 +9,24 @@ local DEFAULT_WARNING_SECONDS = 15
 
 --- @class NotDebuffReminder
 --- @field key string
---- @field spell string TODO: spell ids instead of spell names, for all ranks
+--- @field spell string
+--- @field spellId? number
+--- @field spellIds? table<number>
 --- @field icon string
 --- @field requiredStacks? number
 --- @field auraSpells? table Extra aura names that can satisfy this target debuff reminder
+--- @field auraSpellId? number Extra aura spell ID that can satisfy this target debuff reminder
+--- @field auraSpellIds? table<number> Extra aura spell IDs that can satisfy this target debuff reminder
 
 --- @class NotBuffReminder
 --- @field key string
---- @field spell string TODO: spell ids instead of spell names, for all ranks
+--- @field spell string
+--- @field spellId? number
+--- @field spellIds? table<number>
 --- @field icon string
 --- @field auraSpells? table Extra aura names to match if buff can be satisfied by other buffs
+--- @field auraSpellId? number Extra aura spell ID to match if buff can be satisfied by other buffs
+--- @field auraSpellIds? table<number> Extra aura spell IDs to match if buff can be satisfied by other buffs
 
 --- @alias NotClass "WARRIOR"|"PALADIN"|"DRUID"|"HUNTER"|"WARLOCK"|"PRIEST"|"SHAMAN"|"ROGUE"|"MAGE"
 
@@ -226,31 +234,8 @@ local function createAuraSnapshot(unit)
 	return TargetAuras:New(unit)
 end
 
---- @param auras NotTargetAuras?
---- @param spell NotBuffReminder|NotDebuffReminder
-local function findReminderAura(auras, spell, filter)
-	if not auras then
-		return nil
-	end
-
-	local aura = auras:Find(spell.spell, filter)
-	if aura then
-		return aura
-	end
-
-	return auras:FindAny(spell.auraSpells, filter)
-end
-
-local function findReminderAuraAlias(auras, spell, filter)
-	if not auras then
-		return nil
-	end
-
-	return auras:FindAny(spell.auraSpells, filter)
-end
-
 local function targetDebuffSatisfied(targetAuras, spell)
-	local aura = targetAuras and targetAuras:Find(spell.spell, "HARMFUL")
+	local aura = targetAuras and targetAuras:FindSpell(spell, "HARMFUL")
 	if aura then
 		if not spell.requiredStacks then
 			return true
@@ -262,7 +247,7 @@ local function targetDebuffSatisfied(targetAuras, spell)
 		end
 	end
 
-	return findReminderAuraAlias(targetAuras, spell, "HARMFUL") ~= nil
+	return targetAuras and targetAuras:FindSpellAliases(spell, "HARMFUL") ~= nil
 end
 
 local function isShadowForm(playerAuras)
@@ -340,7 +325,7 @@ local function getBestPlayerBuff()
 		local spell = spells[index]
 		if spellEnabled(settings, spell.key) then
 			fallback = fallback or spell
-			local aura = findReminderAura(playerAuras, spell, "HELPFUL")
+			local aura = playerAuras and playerAuras:FindSpell(spell, "HELPFUL")
 			if aura then
 				local remaining
 				if type(aura.expirationTime) == "number" and aura.expirationTime > 0 then

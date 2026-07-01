@@ -11,6 +11,7 @@ local MAX_AURAS = 40
 ---@field expirationTime number?
 ---@field caster string?
 ---@field filter "HELPFUL"|"HARMFUL"
+---@field spellId number?
 
 ---@class NotTargetAuras
 ---@field unit string
@@ -20,26 +21,42 @@ local MAX_AURAS = 40
 local TargetAuras = {}
 TargetAuras.__index = TargetAuras
 
+local function trim(value)
+	if type(value) ~= "string" then
+		return nil
+	end
+
+	value = value:match("^%s*(.-)%s*$")
+	return value ~= "" and value or nil
+end
+
 --- @return string?
 local function resolveUnitName(unit)
 	if type(UnitName) ~= "function" then
 		return nil
 	end
 
-	local name = UnitName(unit)
-	if type(name) == "string" and name ~= "" then
-		return name
+	local name, realm = UnitName(unit)
+	name = trim(name)
+	if not name then
+		return nil
 	end
 
-	return nil
+	realm = trim(realm)
+	if realm then
+		return ("%s-%s"):format(name, realm)
+	end
+
+	return name
 end
 
 ---@return NotAura?
-local function normalizeAura(name, icon, count, duration, expirationTime, caster, filter)
+local function normalizeAura(name, icon, count, duration, expirationTime, caster, filter, spellId)
 	if type(name) ~= "string" or name == "" then
 		return nil
 	end
 
+	spellId = tonumber(spellId)
 	return {
 		name = name,
 		icon = icon,
@@ -48,7 +65,35 @@ local function normalizeAura(name, icon, count, duration, expirationTime, caster
 		expirationTime = expirationTime,
 		caster = caster,
 		filter = filter,
+		spellId = spellId,
 	}
+end
+
+---@return NotAura?
+local function normalizeAuraReturns(filter, ...)
+	local name = ...
+	if not name then
+		return nil
+	end
+
+	local values = { ... }
+	local spellId = tonumber(values[11]) or tonumber(values[10])
+	local icon, count, duration, expirationTime, caster
+	if tonumber(values[11]) or type(values[3]) == "string" then
+		icon = values[3]
+		count = values[4]
+		duration = values[6]
+		expirationTime = values[7]
+		caster = values[8]
+	else
+		icon = values[2]
+		count = values[3]
+		duration = values[5]
+		expirationTime = values[6]
+		caster = values[7]
+	end
+
+	return normalizeAura(name, icon, count, duration, expirationTime, caster, filter, spellId)
 end
 
 local function readAuraWithUnitAura(unit, index, filter)
@@ -56,15 +101,13 @@ local function readAuraWithUnitAura(unit, index, filter)
 		return nil
 	end
 
-	local name, rank, icon, count, debuffType, duration, expirationTime, caster = UnitAura(unit, index, filter)
-	return normalizeAura(name, icon, count, duration, expirationTime, caster, filter)
+	return normalizeAuraReturns(filter, UnitAura(unit, index, filter))
 end
 
 local function readAura(unit, index, filter)
 	local auraFunc = filter == "HELPFUL" and UnitBuff or UnitDebuff
 	if type(auraFunc) == "function" then
-		local name, rank, icon, count, debuffType, duration, expirationTime, caster = auraFunc(unit, index)
-		return normalizeAura(name, icon, count, duration, expirationTime, caster, filter)
+		return normalizeAuraReturns(filter, auraFunc(unit, index))
 	end
 
 	return readAuraWithUnitAura(unit, index, filter)
@@ -130,7 +173,17 @@ function TargetAuras:GetList(filter)
 	return nil
 end
 
-function TargetAuras:Find(spellName, filter)
+function TargetAuras:Matches(aura, spell)
+	if type(spell) == "number" then
+		return aura and aura.spellId == spell
+	elseif type(spell) == "string" then
+		return aura and TargetAuras.NameMatches(aura.name, spell)
+	end
+
+	return false
+end
+
+function TargetAuras:Find(spell, filter)
 	local auras = self:GetList(filter)
 	if not auras then
 		return nil
@@ -138,7 +191,7 @@ function TargetAuras:Find(spellName, filter)
 
 	for index = 1, #auras do
 		local aura = auras[index]
-		if TargetAuras.NameMatches(aura.name, spellName) then
+		if TargetAuras:Matches(aura, spell) then
 			return aura
 		end
 	end
@@ -146,23 +199,59 @@ function TargetAuras:Find(spellName, filter)
 	return nil
 end
 
-function TargetAuras:FindAny(spellNames, filter)
-	if type(spellNames) == "string" then
-		return self:Find(spellNames, filter)
+function TargetAuras:FindAny(spells, filter)
+	if type(spells) == "string" or type(spells) == "number" then
+		return self:Find(spells, filter)
 	end
 
-	if type(spellNames) ~= "table" then
+	if type(spells) ~= "table" then
 		return nil
 	end
 
-	for index = 1, #spellNames do
-		local aura = self:Find(spellNames[index], filter)
+	for index = 1, #spells do
+		local aura = self:Find(spells[index], filter)
 		if aura then
 			return aura
 		end
 	end
 
 	return nil
+end
+
+function TargetAuras:FindSpell(spell, filter)
+	if type(spell) == "string" or type(spell) == "number" then
+		return self:Find(spell, filter)
+	end
+
+	if type(spell) ~= "table" then
+		return nil
+	end
+
+	local aura = self:Find(spell.spell, filter)
+	if aura then
+		return aura
+	end
+	aura = self:Find(spell.spellId, filter)
+	if aura then
+		return aura
+	end
+
+	aura = self:FindAny(spell.spellIds, filter)
+	if aura then
+		return aura
+	end
+
+	return self:FindSpellAliases(spell, filter)
+end
+
+function TargetAuras:FindSpellAliases(spell, filter)
+	if type(spell) ~= "table" then
+		return nil
+	end
+
+	return self:FindAny(spell.auraSpells, filter)
+		or self:Find(spell.auraSpellId, filter)
+		or self:FindAny(spell.auraSpellIds, filter)
 end
 
 addon.TargetAuras = TargetAuras
