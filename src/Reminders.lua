@@ -7,65 +7,90 @@ local TARGET_BUTTON_COUNT = 5
 local SHOUT_BUTTON_COUNT = 1
 local DEFAULT_WARNING_SECONDS = 15
 
+--- @class NotDebuffReminder
+--- @field key string
+--- @field spell string TODO: spell ids instead of spell names, for all ranks
+--- @field icon string
+--- @field requiredStacks? number
+
+--- @class NotBuffReminder
+--- @field key string
+--- @field spell string TODO: spell ids instead of spell names, for all ranks
+--- @field icon string
+--- @field auraSpells? table Extra aura names to match if buff can be satisfied by other buffs
+
+--- @alias NotClass "WARRIOR"|"PALADIN"|"DRUID"|"HUNTER"|"WARLOCK"|"PRIEST"|"SHAMAN"|"ROGUE"|"MAGE"
+
+--- @type table<NotClass, table<NotDebuffReminder>>
 local targetDebuffsByClass = {
 	WARRIOR = {
-		{ key = "thunderClap", spell = "Thunder Clap", icon = "Interface\\Icons\\Spell_Nature_ThunderClap" },
+		{ key = "thunderClap",       spell = "Thunder Clap",       icon = "Interface\\Icons\\Spell_Nature_ThunderClap" },
 		{ key = "demoralizingShout", spell = "Demoralizing Shout", icon = "Interface\\Icons\\Ability_Warrior_WarCry" },
-		{ key = "sunderArmor", spell = "Sunder Armor", icon = "Interface\\Icons\\Ability_Warrior_Sunder", requiredStacks = 5 },
+		{ key = "sunderArmor",       spell = "Sunder Armor",       icon = "Interface\\Icons\\Ability_Warrior_Sunder",  requiredStacks = 5 },
 	},
 	PALADIN = {
 		{ key = "judgement", spell = "Judgement", icon = "Interface\\Icons\\Spell_Holy_RighteousFury" },
 	},
 	DRUID = {
-		{ key = "faerieFire", spell = "Faerie Fire", icon = "Interface\\Icons\\Spell_Nature_FaerieFire" },
-		{ key = "insectSwarm", spell = "Insect Swarm", icon = "Interface\\Icons\\Spell_Nature_InsectSwarm" },
+		{ key = "faerieFire",       spell = "Faerie Fire",       icon = "Interface\\Icons\\Spell_Nature_FaerieFire" },
+		{ key = "insectSwarm",      spell = "Insect Swarm",      icon = "Interface\\Icons\\Spell_Nature_InsectSwarm" },
 		{ key = "demoralizingRoar", spell = "Demoralizing Roar", icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar", requires = "bearForm" },
-		{ key = "mangle", spell = "Mangle", icon = "Interface\\Icons\\Ability_Druid_Mangle2", requires = "bearForm" },
+		{ key = "mangle",           spell = "Mangle",            icon = "Interface\\Icons\\Ability_Druid_Mangle2",          requires = "bearForm" },
 	},
 	HUNTER = {
-		{ key = "huntersMark", spell = "Hunter's Mark", icon = "Interface\\Icons\\Ability_Hunter_SniperShot" },
+		{ key = "huntersMark",  spell = "Hunter's Mark", icon = "Interface\\Icons\\Ability_Hunter_SniperShot" },
 		{ key = "serpentSting", spell = "Serpent Sting", icon = "Interface\\Icons\\Ability_Hunter_Quickshot" },
 		{ key = "scorpidSting", spell = "Scorpid Sting", icon = "Interface\\Icons\\Ability_Hunter_CriticalShot" },
 	},
 	PRIEST = {
-		{ key = "vampiricTouch", spell = "Vampiric Touch", icon = "Interface\\Icons\\Spell_Holy_Stoicism", requires = "shadowForm" },
-		{ key = "vampiricEmbrace", spell = "Vampiric Embrace", icon = "Interface\\Icons\\Spell_Shadow_UnsummonBuilding", requires = "shadowForm" },
-		{ key = "shadowWordPain", spell = "Shadow Word: Pain", icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain", requires = "shadowForm" },
+		{ key = "vampiricTouch",   spell = "Vampiric Touch",    icon = "Interface\\Icons\\Spell_Holy_Stoicism",           requires = "shadowForm" },
+		{ key = "vampiricEmbrace", spell = "Vampiric Embrace",  icon = "Interface\\Icons\\Spell_Shadow_UnsummonBuilding", requires = "shadowForm" },
+		{ key = "shadowWordPain",  spell = "Shadow Word: Pain", icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",   requires = "shadowForm" },
 	},
 	WARLOCK = {
-		{ key = "corruption", spell = "Corruption", icon = "Interface\\Icons\\Spell_Shadow_AbominationExplosion" },
-		{ key = "immolate", spell = "Immolate", icon = "Interface\\Icons\\Spell_Fire_Immolation" },
-		{ key = "curseOfDoom", spell = "Curse of Doom", icon = "Interface\\Icons\\Spell_Shadow_AuraOfDarkness" },
-		{ key = "curseOfAgony", spell = "Curse of Agony", icon = "Interface\\Icons\\Spell_Shadow_CurseOfSargeras" },
+		{ key = "corruption",      spell = "Corruption",            icon = "Interface\\Icons\\Spell_Shadow_AbominationExplosion" },
+		{ key = "immolate",        spell = "Immolate",              icon = "Interface\\Icons\\Spell_Fire_Immolation" },
+		{ key = "curseOfDoom",     spell = "Curse of Doom",         icon = "Interface\\Icons\\Spell_Shadow_AuraOfDarkness" },
+		{ key = "curseOfAgony",    spell = "Curse of Agony",        icon = "Interface\\Icons\\Spell_Shadow_CurseOfSargeras" },
 		{ key = "curseOfElements", spell = "Curse of the Elements", icon = "Interface\\Icons\\Spell_Shadow_ChillTouch" },
 	},
 }
 
+--- @type table<NotClass, table<NotBuffReminder>>
 local playerBuffsByClass = {
 	WARRIOR = {
-		{ key = "battleShout", spell = "Battle Shout", icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
+		{ key = "battleShout",     spell = "Battle Shout",     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
 		{ key = "commandingShout", spell = "Commanding Shout", icon = "Interface\\Icons\\Ability_Warrior_RallyingCry" },
+	},
+	PALADIN = {
+		{ key = "blessingOfWisdom",    spell = "Blessing of Wisdom",    icon = "Interface\\Icons\\Spell_Holy_SealOfWisdom",      auraSpells = { "Greater Blessing of Wisdom" } },
+		{ key = "blessingOfMight",     spell = "Blessing of Might",     icon = "Interface\\Icons\\Spell_Holy_FistOfJustice",     auraSpells = { "Greater Blessing of Might" } },
+		{ key = "blessingOfSanctuary", spell = "Blessing of Sanctuary", icon = "Interface\\Icons\\Spell_Nature_LightningShield", auraSpells = { "Greater Blessing of Sanctuary" } },
+		{ key = "blessingOfKings",     spell = "Blessing of Kings",     icon = "Interface\\Icons\\Spell_Magic_MageArmor",        auraSpells = { "Greater Blessing of Kings" } },
+		{ key = "sanctityAura",        spell = "Sanctity Aura",         icon = "Interface\\Icons\\Spell_Holy_MindVision" },
+		{ key = "devotionAura",        spell = "Devotion Aura",         icon = "Interface\\Icons\\Spell_Holy_DevotionAura" },
+		{ key = "retributionAura",     spell = "Retribution Aura",      icon = "Interface\\Icons\\Spell_Holy_AuraOfLight" },
 	},
 	ROGUE = {
 		{ key = "sliceAndDice", spell = "Slice and Dice", icon = "Interface\\Icons\\Ability_Rogue_SliceDice" },
 	},
 	HUNTER = {
-		{ key = "aspectOfTheHawk", spell = "Aspect of the Hawk", icon = "Interface\\Icons\\Spell_Nature_RavenForm" },
+		{ key = "aspectOfTheHawk",  spell = "Aspect of the Hawk",  icon = "Interface\\Icons\\Spell_Nature_RavenForm" },
 		{ key = "aspectOfTheViper", spell = "Aspect of the Viper", icon = "Interface\\Icons\\Ability_Hunter_AspectoftheViper" },
 	},
 	WARLOCK = {
-		{ key = "demonSkin", spell = "Demon Skin", icon = "Interface\\Icons\\Spell_Shadow_RagingScream" },
+		{ key = "demonSkin",  spell = "Demon Skin",  icon = "Interface\\Icons\\Spell_Shadow_RagingScream" },
 		{ key = "demonArmor", spell = "Demon Armor", icon = "Interface\\Icons\\Spell_Shadow_RagingScream" },
-		{ key = "felArmor", spell = "Fel Armor", icon = "Interface\\Icons\\Spell_Shadow_FelArmour" },
+		{ key = "felArmor",   spell = "Fel Armor",   icon = "Interface\\Icons\\Spell_Shadow_FelArmour" },
 	},
 	SHAMAN = {
-		{ key = "waterShield", spell = "Water Shield", icon = "Interface\\Icons\\Ability_Shaman_WaterShield" },
+		{ key = "waterShield",     spell = "Water Shield",     icon = "Interface\\Icons\\Ability_Shaman_WaterShield" },
 		{ key = "lightningShield", spell = "Lightning Shield", icon = "Interface\\Icons\\Spell_Nature_LightningShield" },
 	},
 	MAGE = {
-		{ key = "mageArmor", spell = "Mage Armor", icon = "Interface\\Icons\\Spell_MageArmor" },
+		{ key = "mageArmor",   spell = "Mage Armor",   icon = "Interface\\Icons\\Spell_MageArmor" },
 		{ key = "moltenArmor", spell = "Molten Armor", icon = "Interface\\Icons\\Ability_Mage_MoltenArmor" },
-		{ key = "frostArmor", spell = "Frost Armor", icon = "Interface\\Icons\\Spell_Frost_FrostArmor02" },
+		{ key = "frostArmor",  spell = "Frost Armor",  icon = "Interface\\Icons\\Spell_Frost_FrostArmor02" },
 	},
 }
 
@@ -73,8 +98,6 @@ local reminders = {
 	frames = {},
 	targetMissingCount = 0,
 	shoutActive = false,
-	lastOwnPlayerBuffSpell = nil,
-	lastOwnPlayerBuffTime = 0,
 }
 
 addon.REMINDER_TARGET_BUTTON_COUNT = TARGET_BUTTON_COUNT
@@ -246,6 +269,27 @@ local function findAura(unit, spell, filter)
 	return nil
 end
 
+--- @param unit string
+--- @param spell NotBuffReminder|NotDebuffReminder
+local function findReminderAura(unit, spell, filter)
+	local aura = findAura(unit, spell.spell, filter)
+	if aura then
+		return aura
+	end
+
+	local auraSpells = spell.auraSpells
+	if type(auraSpells) == "table" then
+		for index = 1, #auraSpells do
+			aura = findAura(unit, auraSpells[index], filter)
+			if aura then
+				return aura
+			end
+		end
+	end
+
+	return nil
+end
+
 local function isShadowForm()
 	return findAura("player", "Shadowform", "HELPFUL") ~= nil
 end
@@ -324,7 +368,7 @@ local function getBestPlayerBuff()
 		local spell = spells[index]
 		if spellEnabled(settings, spell.key) then
 			fallback = fallback or spell
-			local aura = findAura("player", spell.spell, "HELPFUL")
+			local aura = findReminderAura("player", spell, "HELPFUL")
 			if aura then
 				local remaining
 				if type(aura.expirationTime) == "number" and aura.expirationTime > 0 then
@@ -333,9 +377,7 @@ local function getBestPlayerBuff()
 				if remaining and remaining <= warningSeconds then
 					return spell, remaining
 				end
-				if aura.caster == "player" or reminders.lastOwnPlayerBuffSpell == spell.spell then
-					return nil, remaining
-				end
+				return nil, remaining
 			end
 		end
 	end
@@ -513,10 +555,6 @@ local function createReminderIcon(index, parent, countdown)
 	texture:SetAllPoints()
 	item.texture = texture
 
-	local border = item:CreateTexture(nil, "OVERLAY")
-	border:SetAllPoints()
-	border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-
 	if countdown then
 		local countdownText = item:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		countdownText:SetPoint("BOTTOM", item, "BOTTOM", 0, 2)
@@ -619,7 +657,6 @@ function addon:InitializeReminders()
 
 	self:RegisterEvent("PLAYER_TARGET_CHANGED", "RefreshTargetDebuffs")
 	self:RegisterEvent("UNIT_AURA", "HandleReminderUnitAura")
-	self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", "HandleReminderSpellcastSucceeded")
 	self:ScheduleRepeatingTimer("RefreshPlayerBuffs", 1)
 
 	self:RefreshTargetDebuffs()
@@ -639,24 +676,6 @@ function addon:HandleReminderUnitAura(event, unit)
 		self:RefreshTargetDebuffs()
 	elseif unit == "player" then
 		self:RefreshPlayerBuffs()
-	end
-end
-
-function addon:HandleReminderSpellcastSucceeded(event, unit, castGuid, spellId)
-	if unit ~= "player" then
-		return
-	end
-
-	local spellName = type(GetSpellInfo) == "function" and GetSpellInfo(spellId) or nil
-	local spells = playerBuffsByClass[getPlayerClass()] or {}
-	for index = 1, #spells do
-		local spell = spells[index]
-		if spellName == spell.spell or castGuid == spell.spell then
-			reminders.lastOwnPlayerBuffSpell = spell.spell
-			reminders.lastOwnPlayerBuffTime = getNow()
-			self:RefreshPlayerBuffs()
-			return
-		end
 	end
 end
 
