@@ -217,98 +217,40 @@ local function isBearForm()
 	return (BEAR_FORM ~= nil and formId == BEAR_FORM) or formId == 8
 end
 
-local function auraNameMatches(actual, wanted)
-	if type(actual) ~= "string" or type(wanted) ~= "string" then
-		return false
+local function createAuraSnapshot(unit)
+	local TargetAuras = addon.TargetAuras
+	if not TargetAuras then
+		return nil
 	end
 
-	local actualLower = actual:lower()
-	local wantedLower = wanted:lower()
-	return actualLower == wantedLower or actualLower:sub(1, #wantedLower) == wantedLower
+	return TargetAuras:New(unit)
 end
 
-local function findAura(unit, spell, filter)
-	local auraFunc = filter == "HELPFUL" and UnitBuff or UnitDebuff
-	if type(auraFunc) == "function" then
-		for index = 1, 40 do
-			local name, rank, icon, count, debuffType, duration, expirationTime, caster = auraFunc(unit, index)
-			if not name then
-				break
-			end
-			if auraNameMatches(name, spell) then
-				return {
-					name = name,
-					icon = icon,
-					count = count,
-					duration = duration,
-					expirationTime = expirationTime,
-					caster = caster,
-				}
-			end
-		end
-	end
-
-	if type(UnitAura) == "function" then
-		for index = 1, 40 do
-			local name, rank, icon, count, debuffType, duration, expirationTime, caster = UnitAura(unit, index, filter)
-			if not name then
-				break
-			end
-			if auraNameMatches(name, spell) then
-				return {
-					name = name,
-					icon = icon,
-					count = count,
-					duration = duration,
-					expirationTime = expirationTime,
-					caster = caster,
-				}
-			end
-		end
-	end
-
-	return nil
-end
-
---- @param unit string
+--- @param auras NotTargetAuras?
 --- @param spell NotBuffReminder|NotDebuffReminder
-local function findReminderAura(unit, spell, filter)
-	local aura = findAura(unit, spell.spell, filter)
+local function findReminderAura(auras, spell, filter)
+	if not auras then
+		return nil
+	end
+
+	local aura = auras:Find(spell.spell, filter)
 	if aura then
 		return aura
 	end
 
-	local auraSpells = spell.auraSpells
-	if type(auraSpells) == "table" then
-		for index = 1, #auraSpells do
-			aura = findAura(unit, auraSpells[index], filter)
-			if aura then
-				return aura
-			end
-		end
-	end
-
-	return nil
+	return auras:FindAny(spell.auraSpells, filter)
 end
 
-local function findReminderAuraAlias(unit, spell, filter)
-	local auraSpells = spell.auraSpells
-	if type(auraSpells) ~= "table" then
+local function findReminderAuraAlias(auras, spell, filter)
+	if not auras then
 		return nil
 	end
 
-	for index = 1, #auraSpells do
-		local aura = findAura(unit, auraSpells[index], filter)
-		if aura then
-			return aura
-		end
-	end
-
-	return nil
+	return auras:FindAny(spell.auraSpells, filter)
 end
 
-local function targetDebuffSatisfied(spell)
-	local aura = findAura("target", spell.spell, "HARMFUL")
+local function targetDebuffSatisfied(targetAuras, spell)
+	local aura = targetAuras and targetAuras:Find(spell.spell, "HARMFUL")
 	if aura then
 		if not spell.requiredStacks then
 			return true
@@ -320,18 +262,18 @@ local function targetDebuffSatisfied(spell)
 		end
 	end
 
-	return findReminderAuraAlias("target", spell, "HARMFUL") ~= nil
+	return findReminderAuraAlias(targetAuras, spell, "HARMFUL") ~= nil
 end
 
-local function isShadowForm()
-	return findAura("player", "Shadowform", "HELPFUL") ~= nil
+local function isShadowForm(playerAuras)
+	return playerAuras and playerAuras:Find("Shadowform", "HELPFUL") ~= nil
 end
 
-local function requirementMet(requirement)
+local function requirementMet(requirement, playerAuras)
 	if requirement == "bearForm" then
 		return isBearForm()
 	elseif requirement == "shadowForm" then
-		return isShadowForm()
+		return isShadowForm(playerAuras)
 	end
 
 	return true
@@ -364,11 +306,13 @@ local function getTargetDebuffSpells()
 		return {}
 	end
 
+	local targetAuras = createAuraSnapshot("target")
+	local playerAuras = createAuraSnapshot("player")
 	local missing = {}
 	for index = 1, #spells do
 		local spell = spells[index]
-		if spellEnabled(settings, spell.key) and requirementMet(spell.requires) then
-			if not targetDebuffSatisfied(spell) then
+		if spellEnabled(settings, spell.key) and requirementMet(spell.requires, playerAuras) then
+			if not targetDebuffSatisfied(targetAuras, spell) then
 				missing[#missing + 1] = spell
 			end
 		end
@@ -391,11 +335,12 @@ local function getBestPlayerBuff()
 
 	local warningSeconds = tonumber(settings.warningSeconds) or DEFAULT_WARNING_SECONDS
 	local fallback
+	local playerAuras = createAuraSnapshot("player")
 	for index = 1, #spells do
 		local spell = spells[index]
 		if spellEnabled(settings, spell.key) then
 			fallback = fallback or spell
-			local aura = findReminderAura("player", spell, "HELPFUL")
+			local aura = findReminderAura(playerAuras, spell, "HELPFUL")
 			if aura then
 				local remaining
 				if type(aura.expirationTime) == "number" and aura.expirationTime > 0 then

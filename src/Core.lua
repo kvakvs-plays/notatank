@@ -13,6 +13,7 @@ local AceAddon = LibStub("AceAddon-3.0")
 --- @field POPUP_BUTTON_COUNT number
 --- @field REMINDER_TARGET_BUTTON_COUNT number
 --- @field REMINDER_SHOUT_BUTTON_COUNT number
+--- @field TargetAuras NotTargetAuras
 
 AceAddon:NewAddon(addon, addonName, "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0")
 

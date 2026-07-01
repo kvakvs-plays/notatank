@@ -11,9 +11,10 @@ Notatank is a World of Warcraft Classic TBC addon built around Ace3. The addon c
 3. `src/Targets.lua` defines raid mark metadata, priority-list helpers, and mouseover capture.
 4. `src/Macro.lua` renders and maintains the addon-owned macro.
 5. `src/Popup.lua` pre-creates secure target buttons and handles popup placement.
-6. `src/Reminders.lua` creates movable reminder overlays, class debuff checks, and class-grouped self-buff checks.
-7. `src/Options.lua` registers the AceConfig options table and Interface Options entry.
-8. `src/Commands.lua` registers `/notatank` and `/nt`.
+6. `src/Auras.lua` defines cached unit-token aura snapshots for Classic-compatible buff and debuff lookup.
+7. `src/Reminders.lua` creates movable reminder overlays, class debuff checks, and class-grouped self-buff checks.
+8. `src/Options.lua` registers the AceConfig options table and Interface Options entry.
+9. `src/Commands.lua` registers `/notatank` and `/nt`.
 
 ## Runtime Shape
 
@@ -24,6 +25,8 @@ Saved data is profile-scoped through AceDB. Target priority data lives at `profi
 Captured targets are in-memory only. `UPDATE_MOUSEOVER_UNIT` records hostile mouseover units outside combat when they match the configured priority list by raid mark or by name prefix. Candidates store name, raid mark, GUID-or-name key, priority rank, and last seen time, and are sorted by priority rank then recency.
 
 The combat popup is a fixed pool of secure action buttons prepared out of combat from captured priority candidates. Button macro attributes are never changed in combat. Visibility is controlled by a secure state driver where available: the popup shows in combat when prepared candidates exist, otherwise it stays hidden. Clicking a popup button targets that clicked candidate. While unlocked, a placement visual is shown out of combat so the frame can be dragged and saved.
+
+`src/Auras.lua` exposes `addon.TargetAuras`, a metatable-style snapshot created from a WoW unit token such as `target` or `player`. A snapshot stores the resolved unit name and cached helpful and harmful aura records from the Classic-compatible UnitBuff, UnitDebuff, and UnitAura APIs. Reminder refreshes build one snapshot per relevant unit and reuse it for all aura lookups in that refresh.
 
 Reminder overlays are profile-scoped under `profile.overlays`. `src/Reminders.lua` owns two movable frames: target debuffs and self buffs. Target reminders are passive texture icons that can update during combat and check the current live hostile target for enabled class debuffs: warrior Thunder Clap, Demoralizing Shout, and Sunder Armor up to 5 stacks, with Expose Armor satisfying the Sunder reminder; paladin Judgement variants; druid Faerie Fire and Insect Swarm plus bear-only Demoralizing Roar and Mangle; hunter Hunter's Mark, Serpent Sting, and Scorpid Sting; shadow priest Vampiric Touch, Vampiric Embrace, and Shadow Word: Pain while in Shadowform; and warlock Corruption, Immolate, Curse of Doom, Curse of Agony, and Curse of the Elements. Stackable debuff icons show the required stack count while they remain unsatisfied. Self-buff reminders are also passive texture icons that update in and out of combat while watching class-grouped player buffs: warrior shouts, paladin blessings and auras, rogue Slice and Dice, hunter aspects, warlock armor buffs, shaman shields, and mage armor buffs. Any matching player aura satisfies a self-buff requirement, regardless of caster. Paladin blessing reminders accept the matching Greater Blessing aura as satisfying the same requirement.
 
