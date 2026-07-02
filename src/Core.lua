@@ -4,6 +4,8 @@ local addonName, addon = ...
 local AceAddon = LibStub("AceAddon-3.0")
 
 --- @class NotAddon
+--- @field db NotAceDBProfile
+--- @field Print function
 --- @field RAID_MARKS table<NotRaidmark>
 --- @field RAID_MARK_ORDER table<number>
 --- @field ADDON_NAME string
